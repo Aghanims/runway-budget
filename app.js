@@ -134,6 +134,7 @@ try {
 
 let saveFailed = false;
 function save() {
+  if (!applyingCloud) state.updatedAt = Date.now();
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
     saveFailed = false;
@@ -141,6 +142,7 @@ function save() {
     if (!saveFailed) toast("⚠️ Couldn't save — back up to a file so nothing is lost");
     saveFailed = true;
   }
+  queueCloudPush();
 }
 
 /* ---------- backup to / restore from a file (survives any browser storage issue) ---------- */
@@ -168,6 +170,167 @@ function importBackup(file) {
     }
   };
   reader.readAsText(file);
+}
+
+/* ============================================================
+   Cloud sync (Supabase, free tier) — dormant until configured.
+   The anon key is PUBLIC by design and safe to commit: row-level
+   security on the table means a signed-in user can only ever
+   read/write their own row. Sign-in is by email magic link, so
+   there are no passwords anywhere.
+   Sync model: whole-state blob, last-write-wins by timestamp.
+   ============================================================ */
+const SUPABASE_URL = "";      // e.g. "https://abcdefgh.supabase.co"  (Settings → API)
+const SUPABASE_ANON_KEY = ""; // the "anon public" key from the same page
+
+let sb = null, cloudUser = null, pushTimer = null, applyingCloud = false;
+let syncState = "idle"; // idle | syncing | synced | error
+const cloudEnabled = () => !!(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase);
+
+function setSync(s) { syncState = s; updateSyncUI(); }
+
+function updateSyncUI() {
+  const dot = $("#sync-dot"), label = $("#sync-label"), btn = $("#sync-account");
+  if (!dot) return;
+  dot.className = "sync-dot " + (cloudUser ? syncState : (cloudEnabled() ? "idle" : "off"));
+  label.textContent = cloudUser
+    ? ({ syncing: "Syncing…", error: "Sync error" }[syncState] || "Synced")
+    : "Sync";
+  btn.title = cloudUser ? `Signed in as ${cloudUser.email}` : "Sync your data across devices";
+}
+
+async function cloudInit() {
+  if (!cloudEnabled()) { updateSyncUI(); return; }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const { data: { session } } = await sb.auth.getSession();
+  cloudUser = session?.user || null;
+  sb.auth.onAuthStateChange((_evt, sess) => {
+    const wasId = cloudUser?.id;
+    cloudUser = sess?.user || null;
+    updateSyncUI();
+    if (cloudUser && cloudUser.id !== wasId) pullThenPush();
+  });
+  updateSyncUI();
+  if (cloudUser) pullThenPush();
+  window.addEventListener("online", () => { if (cloudUser) queueCloudPush(); });
+}
+
+async function pullThenPush() {
+  if (!sb || !cloudUser) return;
+  try {
+    setSync("syncing");
+    const { data, error } = await sb.from("budgets")
+      .select("data, updated_at").eq("user_id", cloudUser.id).maybeSingle();
+    if (error) throw error;
+    const cloudT = data ? Date.parse(data.updated_at) : 0;
+    if (data && cloudT > (state.updatedAt || 0)) {
+      applyingCloud = true;
+      state = data.data;
+      state.updatedAt = cloudT;
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {}
+      applyTheme(); render();
+      applyingCloud = false;
+      toast("Synced from cloud ☁");
+    } else {
+      await pushCloud();
+    }
+    setSync("synced");
+  } catch { setSync("error"); }
+}
+
+async function pushCloud() {
+  if (!sb || !cloudUser) return;
+  const { error } = await sb.from("budgets").upsert({
+    user_id: cloudUser.id,
+    data: state,
+    updated_at: new Date(state.updatedAt || Date.now()).toISOString(),
+  });
+  if (error) throw error;
+}
+
+function queueCloudPush() {
+  if (!sb || !cloudUser || applyingCloud) return;
+  clearTimeout(pushTimer);
+  setSync("syncing");
+  pushTimer = setTimeout(async () => {
+    try { await pushCloud(); setSync("synced"); }
+    catch { setSync("error"); }
+  }, 1200);
+}
+
+function openSyncModal() {
+  const root = $("#modal-root");
+  const close = () => (root.innerHTML = "");
+
+  if (!cloudEnabled()) {
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h2>Cloud sync</h2>
+          <div class="sync-meta">Sync isn't set up yet. It's free: create a project at
+            <b>supabase.com</b>, then add the project URL and anon key at the top of the
+            cloud-sync section in <code>app.js</code>. Until then, use
+            <b>Backup to file</b> / <b>Restore from file</b> to move data between devices.</div>
+          <div class="modal-actions"><button class="text-btn" id="m-cancel">Close</button></div>
+        </div>
+      </div>`;
+  } else if (!cloudUser) {
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h2>Sign in to sync</h2>
+          <div class="sync-meta">Enter your email and we'll send you a one-time sign-in link —
+            no password needed. Use the same email on every device to share one budget.</div>
+          <div class="form-field full">
+            <label>Email</label>
+            <input id="sync-email" type="email" placeholder="you@example.com" autocomplete="email">
+          </div>
+          <div id="sync-feedback" style="margin-top:12px"></div>
+          <div class="modal-actions">
+            <button class="text-btn" id="m-cancel">Cancel</button>
+            <button class="primary-btn" id="sync-send">Send magic link</button>
+          </div>
+        </div>
+      </div>`;
+    $("#sync-send").addEventListener("click", async () => {
+      const email = $("#sync-email").value.trim();
+      if (!/^\S+@\S+\.\S+$/.test(email)) { toast("Enter a valid email"); return; }
+      $("#sync-send").disabled = true;
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: location.origin + location.pathname },
+      });
+      $("#sync-feedback").innerHTML = error
+        ? `<div class="import-errors">${esc(error.message)}</div>`
+        : `<div class="sync-sent">✓ Link sent to ${esc(email)} — open it on this device and you'll
+           be signed in here. (Free-tier emails are rate-limited, so give it a minute.)</div>`;
+      if (error) $("#sync-send").disabled = false;
+    });
+    setTimeout(() => $("#sync-email").focus(), 60);
+  } else {
+    const last = state.updatedAt ? new Date(state.updatedAt).toLocaleString() : "never";
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h2>Cloud sync</h2>
+          <div class="sync-email">☁ ${esc(cloudUser.email)}</div>
+          <div class="sync-meta">Changes sync automatically a moment after you make them.
+            Last change: ${esc(last)}. Sign in with this same email on another device to see the same data.</div>
+          <div class="modal-actions">
+            <button class="text-btn" id="sync-out">Sign out</button>
+            <button class="primary-btn" id="sync-now">Sync now</button>
+          </div>
+        </div>
+      </div>`;
+    $("#sync-now").addEventListener("click", async () => { close(); await pullThenPush(); toast("Sync complete"); });
+    $("#sync-out").addEventListener("click", async () => {
+      await sb.auth.signOut(); close(); updateSyncUI();
+      toast("Signed out — data stays on this device");
+    });
+  }
+
+  $("#m-cancel")?.addEventListener("click", close);
+  $("#backdrop").addEventListener("click", (e) => { if (e.target.id === "backdrop") close(); });
 }
 
 /* ---------- utils ---------- */
@@ -1251,6 +1414,7 @@ $("#start-fresh").addEventListener("click", () => {
   }
 });
 
+$("#sync-account").addEventListener("click", openSyncModal);
 $("#backup-file").addEventListener("click", exportBackup);
 $("#restore-file").addEventListener("click", () => $("#restore-input").click());
 $("#restore-input").addEventListener("change", (e) => {
@@ -1263,3 +1427,4 @@ $("#restore-input").addEventListener("change", (e) => {
 applyTheme();
 render();
 if (!STORAGE_OK) $("#storage-warning").hidden = false;
+cloudInit();

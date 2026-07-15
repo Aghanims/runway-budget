@@ -38,6 +38,9 @@
       </div>
 
       <div class="sidebar-foot">
+        <button id="sync-account" class="ghost-btn" title="Sync your data across devices">
+          <span id="sync-dot" class="sync-dot off"></span><span id="sync-label">Sync</span>
+        </button>
         <button id="theme-toggle" class="ghost-btn" title="Toggle theme">
           <span class="theme-ico">◐</span><span class="theme-label">Theme</span>
         </button>
@@ -71,6 +74,7 @@
   <div id="toast-root"></div>
   <canvas id="confetti"></canvas>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
 </html>
