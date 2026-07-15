@@ -1,34 +1,34 @@
 # Runway — Budget Planner
 
-Runway is a single-page personal budget planner that runs in your browser. It's built around an **adaptive daily budget**: instead of a fixed monthly cap, it works out how much you can spend *today*, rolls unspent money forward, and borrows from tomorrow when you overspend, so you always know what's actually left.
+Runway is a single-page budget planner that runs entirely in your browser. The idea behind it is simple: instead of handing you one big number for the whole month, it works out an adaptive daily budget — how much you can actually spend today. Underspend and the leftover rolls into tomorrow; overspend and it gets borrowed back from tomorrow. So instead of guessing, you always know what's really left to spend right now.
 
-Live at **https://aghanims.github.io/runway-budget/**
+You can try it live at https://aghanims.github.io/runway-budget/
 
 ## Features
 
-- **Adaptive daily budget** — each day's allowance is `(remaining spendable ÷ days left) + yesterday's carryover`. Underspend rolls into tomorrow; overspend is subtracted from it. A gauge shows what's left today, and a "runway" strip tracks how far into the month you are.
-- **Dashboard** — what's left to spend this month at a glance, a daily budget-flow chart, a spending-pace line, and per-category breakdowns (income, expenses, bills, savings, debt).
-- **Transactions** — log income and expenses, or bulk-import many at once by pasting `type|date|name|planned|actual` lines.
-- **Bills** — track recurring bills and mark them paid.
-- **Goals** — set savings targets and debt-payoff goals and watch progress.
-- **Months** — step between months to review the past or plan ahead; leftover budget rolls over.
-- **Light / dark theme.**
+- **Adaptive daily budget** — each day's allowance works out to (remaining spendable ÷ days left) + yesterday's carryover. Spend less than that and it carries into tomorrow; spend more and it comes out of tomorrow's budget instead. A gauge shows what's left today, and a "runway" strip gives you a sense of how far into the month you are.
+- **Dashboard** — a quick view of what's left to spend this month, plus a daily budget-flow chart, a spending-pace line, and breakdowns by category (income, expenses, bills, savings, debt).
+- **Transactions** — log income and expenses one by one, or paste in a batch of `type|date|name|planned|actual` lines to import a bunch at once.
+- **Bills** — keep track of recurring bills and check them off once they're paid.
+- **Goals** — set savings targets or debt payoff goals and watch your progress add up.
+- **Months** — move between months to look back or plan ahead; whatever's left over rolls forward automatically.
+- **Light / dark theme** — pick your side.
 
 ## Your data
 
-Data is stored **locally in your browser** by default — nothing leaves your device unless you turn on sync.
+By default, everything stays local in your browser — none of it leaves your device unless you turn sync on yourself.
 
-- **Backup / Restore** — export everything to a JSON file and restore it later. This is the simplest way to move data between devices, and a good safety net.
-- **Cloud sync (optional)** — sign in with a magic link (email, no password) to sync one budget across devices. Sync is off until you sign in.
+- **Backup / Restore** — export everything to a JSON file whenever you like and restore it later. It's the easiest way to move your data between devices, and it works as a safety net too.
+- **Cloud sync (optional)** — sign in with a magic link (just your email, no password needed) to keep one budget synced across devices. It stays off until you actually sign in.
 
-If your browser is set to clear site data on exit, Runway will warn you — use Backup to file, or turn on sync, so nothing is lost.
+One thing worth knowing: if your browser is set to clear site data when it closes, Runway will warn you about it — just back up to a file or turn on sync so nothing gets lost.
 
 ## Getting started
 
-Open `index.html` in your browser, or double-click `Start Runway.bat` on Windows to serve it locally. No build step and no install.
+Open index.html in your browser, or on Windows, double-click Start Runway.bat to serve it locally. There's no build step and nothing to install — it just runs.
 
 ## Tech
 
-Plain HTML, CSS, and JavaScript — no framework, no build. State lives in `localStorage`, with JSON backup/restore for portability. Optional cross-device sync uses [Supabase](https://supabase.com) (magic-link auth + a single row per user, protected by row-level security).
+Under the hood it's plain HTML, CSS, and JavaScript — no framework, no build process. State lives in localStorage, with JSON backup/restore so your data isn't stuck in one place. The optional cross-device sync runs on Supabase, using magic-link auth and a single row per user, kept private with row-level security.
 
-> **Forking?** The Supabase URL and anon key in `app.js` point at this project's own backend. The anon key is public by design and row-level security keeps each user's data private, but to run your own sync you'll want to create your own free Supabase project and swap in its URL and anon key at the top of the cloud-sync section in `app.js`. Leave them blank and the app works fully in local-only mode.
+Thinking about forking this? The Supabase URL and anon key in app.js point at my own backend. That anon key is public by design, and row-level security keeps everyone's data separate, but if you want to run your own sync, spin up a free Supabase project and swap in its URL and anon key near the top of the cloud-sync section in app.js. Leave those blank and the app still works fine, just in local-only mode.
