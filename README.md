@@ -1,6 +1,6 @@
 # Runway — Budget Planner
 
-Runway is a single-page personal budget planner that runs in your browser. It's built around an **adaptive daily budget**: instead of a fixed monthly cap, it works out how much you can spend *today*, rolls unspent money forward, and borrows from tomorrow when you overspend — so you always know what's actually left.
+Runway is a single-page personal budget planner that runs in your browser. It's built around an **adaptive daily budget**: instead of a fixed monthly cap, it works out how much you can spend *today*, rolls unspent money forward, and borrows from tomorrow when you overspend, so you always know what's actually left.
 
 Live at **https://aghanims.github.io/runway-budget/**
 
