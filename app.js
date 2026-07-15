@@ -180,8 +180,8 @@ function importBackup(file) {
    there are no passwords anywhere.
    Sync model: whole-state blob, last-write-wins by timestamp.
    ============================================================ */
-const SUPABASE_URL = "";      // e.g. "https://abcdefgh.supabase.co"  (Settings → API)
-const SUPABASE_ANON_KEY = ""; // the "anon public" key from the same page
+const SUPABASE_URL = "https://cbpfpbfcpscrkiaxpdua.supabase.co";      // (Settings → API)
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNicGZwYmZjcHNjcmtpYXhwZHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzA4MTQsImV4cCI6MjA5OTcwNjgxNH0.gn0WGbmXvTYboJrpXsQNcOrYTv3Y8HeJz6lmk3VJUHA"; // "anon public" key
 
 let sb = null, cloudUser = null, pushTimer = null, applyingCloud = false;
 let syncState = "idle"; // idle | syncing | synced | error
