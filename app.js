@@ -431,7 +431,7 @@ function toast(msg) {
 function confetti() {
   const cv = $("#confetti"), ctx = cv.getContext("2d");
   cv.width = innerWidth; cv.height = innerHeight;
-  const colors = ["#2a78d6", "#1baf7a", "#eda100", "#4a3aa7", "#eb6834", "#e87ba4"];
+  const colors = ["#1c7a4c", "#c8452b", "#b98a2e", "#3a4f8c", "#a13a5c", "#2f9c66"];
   const parts = Array.from({ length: 140 }, () => ({
     x: innerWidth / 2 + (Math.random() - 0.5) * 200,
     y: innerHeight * 0.45,

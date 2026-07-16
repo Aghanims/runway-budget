@@ -1,0 +1,103 @@
+/* Hallmark · design tokens · theme: Ledger (custom)
+ * vibe: "ledger paper, money-green, brass, ink-precise"
+ * paper: oklch(96% 0.016 78)  ·  accent: oklch(42% 0.15 152)
+ * display: Source Serif 4 · body: IBM Plex Sans · mono: IBM Plex Mono
+ * axes: light / roman-serif / chromatic-other (money-green ~152°)
+ * ============================================================ */
+:root {
+  /* surfaces — warm ivory ledger paper */
+  --page: oklch(96% 0.016 78);
+  --surface: oklch(99% 0.010 78);
+  --surface-2: oklch(93% 0.020 78);
+  --surface-3: oklch(89% 0.024 78);
+  --grid: oklch(87% 0.022 78);
+  --baseline: oklch(76% 0.028 78);
+  --border: oklch(45% 0.03 152 / 0.14);
+
+  /* ink — green-black ledger ink */
+  --ink: oklch(21% 0.024 152);
+  --ink-2: oklch(41% 0.020 152);
+  --ink-3: oklch(58% 0.016 152);
+
+  /* categorical — hue-separated ledger notation */
+  --c-income: oklch(46% 0.14 152);   /* money green */
+  --c-expense: oklch(50% 0.17 27);   /* ledger red ink */
+  --c-bill: oklch(58% 0.13 78);      /* brass */
+  --c-saving: oklch(38% 0.10 250);   /* vault indigo */
+  --c-debt: oklch(45% 0.14 352);     /* wine */
+  --c-income-soft: color-mix(in oklch, var(--c-income) 15%, var(--surface));
+  --c-expense-soft: color-mix(in oklch, var(--c-expense) 15%, var(--surface));
+  --c-bill-soft: color-mix(in oklch, var(--c-bill) 18%, var(--surface));
+  --c-saving-soft: color-mix(in oklch, var(--c-saving) 15%, var(--surface));
+  --c-debt-soft: color-mix(in oklch, var(--c-debt) 15%, var(--surface));
+
+  --accent: oklch(42% 0.15 152);
+  --accent-ink: oklch(30% 0.12 152);
+  --track: oklch(88% 0.05 152);
+
+  --good: oklch(46% 0.14 152);
+  --good-ink: oklch(33% 0.13 152);
+  --warning: oklch(56% 0.13 78);
+  --serious: oklch(53% 0.15 45);
+  --critical: oklch(49% 0.18 25);
+
+  --focus: oklch(52% 0.19 152);
+
+  --shadow: 0 1px 2px oklch(25% 0.03 78 / 0.06), 0 8px 20px oklch(25% 0.03 78 / 0.08);
+  --shadow-lift: 0 2px 4px oklch(25% 0.03 78 / 0.08), 0 14px 32px oklch(25% 0.03 78 / 0.13);
+
+  --radius: 10px;
+  --radius-sm: 7px;
+
+  --font-display: "Source Serif 4", ui-serif, Georgia, serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "IBM Plex Mono", Consolas, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-instant: 100ms;
+  --dur-short: 180ms;
+  --dur-med: 280ms;
+  --dur-long: 450ms;
+}
+
+:root[data-theme="dark"] {
+  --page: oklch(15% 0.020 152);
+  --surface: oklch(19% 0.022 152);
+  --surface-2: oklch(24% 0.024 152);
+  --surface-3: oklch(29% 0.026 152);
+  --grid: oklch(28% 0.022 152);
+  --baseline: oklch(35% 0.026 152);
+  --border: oklch(80% 0.03 152 / 0.14);
+
+  --ink: oklch(93% 0.012 152);
+  --ink-2: oklch(74% 0.014 152);
+  --ink-3: oklch(55% 0.014 152);
+
+  --c-income: oklch(64% 0.15 152);
+  --c-expense: oklch(66% 0.17 27);
+  --c-bill: oklch(72% 0.12 78);
+  --c-saving: oklch(64% 0.11 250);
+  --c-debt: oklch(64% 0.14 352);
+  --c-income-soft: color-mix(in oklch, var(--c-income) 18%, var(--surface));
+  --c-expense-soft: color-mix(in oklch, var(--c-expense) 18%, var(--surface));
+  --c-bill-soft: color-mix(in oklch, var(--c-bill) 20%, var(--surface));
+  --c-saving-soft: color-mix(in oklch, var(--c-saving) 18%, var(--surface));
+  --c-debt-soft: color-mix(in oklch, var(--c-debt) 18%, var(--surface));
+
+  --accent: oklch(64% 0.15 152);
+  --accent-ink: oklch(84% 0.10 152);
+  --track: oklch(32% 0.05 152);
+
+  --good: oklch(64% 0.15 152);
+  --good-ink: oklch(78% 0.12 152);
+  --warning: oklch(70% 0.12 78);
+  --serious: oklch(68% 0.15 45);
+  --critical: oklch(67% 0.18 25);
+
+  --focus: oklch(68% 0.18 152);
+
+  --shadow: 0 1px 2px oklch(0% 0 0 / 0.35), 0 10px 26px oklch(0% 0 0 / 0.45);
+  --shadow-lift: 0 2px 6px oklch(0% 0 0 / 0.45), 0 18px 42px oklch(0% 0 0 / 0.55);
+}
