@@ -45,6 +45,10 @@
 
   --shadow: 0 1px 2px oklch(25% 0.03 78 / 0.06), 0 8px 20px oklch(25% 0.03 78 / 0.08);
   --shadow-lift: 0 2px 4px oklch(25% 0.03 78 / 0.08), 0 14px 32px oklch(25% 0.03 78 / 0.13);
+  /* tinted "float" shadow — money-green ambient instead of flat black, used on
+     deliberate hover-lift moments (kpi tiles, cards) so depth reads as designed */
+  --shadow-float: 0 3px 6px oklch(25% 0.03 78 / 0.08), 0 20px 44px oklch(42% 0.10 152 / 0.16);
+  --glow-accent: 0 0 0 1px oklch(42% 0.15 152 / 0.10), 0 0 28px oklch(42% 0.15 152 / 0.14);
 
   --radius: 10px;
   --radius-sm: 7px;
@@ -56,10 +60,20 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* reserved strictly for one-off celebratory bursts (bill paid, goal complete) —
+     never applied to persistent UI-state transitions like hover/focus/press */
+  --ease-cel: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-instant: 100ms;
   --dur-short: 180ms;
   --dur-med: 280ms;
   --dur-long: 450ms;
+  --dur-xlong: 650ms;
+
+  /* faint paper-grain overlay — a tiled SVG turbulence field with alpha scaled
+     down to ~5% in the filter itself, giving the ledger surface tactile depth
+     instead of a flat digital fill (the low alpha is baked in, not relying on
+     a blend-mode to fake subtlety) */
+  --texture-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.05'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 :root[data-theme="dark"] {
@@ -100,4 +114,6 @@
 
   --shadow: 0 1px 2px oklch(0% 0 0 / 0.35), 0 10px 26px oklch(0% 0 0 / 0.45);
   --shadow-lift: 0 2px 6px oklch(0% 0 0 / 0.45), 0 18px 42px oklch(0% 0 0 / 0.55);
+  --shadow-float: 0 3px 8px oklch(0% 0 0 / 0.4), 0 22px 48px oklch(64% 0.15 152 / 0.22);
+  --glow-accent: 0 0 0 1px oklch(64% 0.15 152 / 0.16), 0 0 32px oklch(64% 0.15 152 / 0.20);
 }

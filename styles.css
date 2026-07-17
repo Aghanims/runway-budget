@@ -1,15 +1,17 @@
-/* Hallmark · redesign · route: custom (tuned) · theme: Ledger
+/* Hallmark · redesign · route: custom (tuned) · theme: Ledger (elevated)
  * pre-emit critique: P5 H4 E5 S4 R5 V5
  * vibe: "ledger paper, money-green, brass, ink-precise" · context: user-provided ("finance, money")
  * paper: oklch(96% 0.016 78) · accent: oklch(42% 0.15 152)
  * display: Source Serif 4 (roman) · body: IBM Plex Sans · mono: IBM Plex Mono
- * axes: light / roman-serif / chromatic-other (money-green ~152°) — differs from the prior
- * Cold Snap run (light / system-native / cool-blue ~210°) on display-style + accent-hue.
- * Brand, copy, IA and the app.js DOM/token contract are preserved — every colour token
- * name app.js references inline (var(--c-expense), var(--good), var(--critical)…) still
- * resolves here; only the values + surrounding component voice changed. Frosted glass +
- * bouncy overshoot easing are dropped entirely in favour of flat ruled ledger paper,
- * hairline rule, tabular ink, and ease-out-only settle motion.
+ * axes: light / roman-serif / chromatic-other (money-green ~152°) — unchanged from
+ * the prior Ledger run; this pass elevates depth + motion, it does not re-theme.
+ * Brand, copy, IA and the app.js DOM/token contract are still fully preserved —
+ * every colour token app.js references inline (var(--c-expense), var(--good),
+ * var(--critical)…) still resolves here. What changed: a tactile paper-grain +
+ * ambient bloom layer, a cascading section-entrance choreography, tinted
+ * float-shadows on hover, a runway contrail behind the plane, a gauge halo,
+ * and one-off celebratory bursts (bill paid, goal complete) using --ease-cel —
+ * reserved strictly for those two moments, never for persistent UI-state motion.
  * ============================================================ */
 
 @import url("tokens.css");
@@ -20,10 +22,14 @@ html { height: 100%; overflow-x: clip; }
 body {
   font-family: var(--font-body);
   background-color: var(--page);
-  /* faint ruled ledger paper — a hairline every 28px, echoing an accounting sheet */
-  background-image: repeating-linear-gradient(
-    to bottom, transparent, transparent 27px, var(--grid) 27px, var(--grid) 28px
-  );
+  /* faint ruled ledger paper (hairline every 28px) + a tactile grain field +
+     a soft ambient bloom anchored behind where the hero number sits — three
+     layers stacked so the paper reads as textured, not flat-digital */
+  background-image:
+    radial-gradient(760px 480px at 18% 8%, color-mix(in oklch, var(--accent) 7%, transparent), transparent 70%),
+    repeating-linear-gradient(to bottom, transparent, transparent 27px, var(--grid) 27px, var(--grid) 28px),
+    var(--texture-grain);
+  background-size: auto, auto, 180px 180px;
   color: var(--ink);
   height: 100%;
   overflow-x: clip;
@@ -97,13 +103,17 @@ select:focus-visible {
   transition: background-color .16s var(--ease-out), color .16s var(--ease-out);
 }
 .nav-btn:hover { background: var(--surface-2); color: var(--ink); }
+.nav-btn:hover .nav-ico { transform: translateY(-1px); }
 .nav-btn:active { transform: translateY(1px); }
 .nav-btn.active { background: var(--c-income-soft); color: var(--good-ink); font-weight: 650; }
 .nav-btn.active::before {
   content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
   border-radius: 1px; background: var(--accent);
+  animation: railIn .22s var(--ease-out) both;
+  transform-origin: center;
 }
-.nav-ico { width: 20px; text-align: center; font-size: 15px; }
+@keyframes railIn { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.nav-ico { width: 20px; text-align: center; font-size: 15px; transition: transform .16s var(--ease-out); display: inline-block; }
 
 /* ============ cloud sync ============ */
 .sync-dot {
@@ -145,7 +155,12 @@ select:focus-visible {
 .ghost-btn.subtle { font-size: 12px; color: var(--ink-3); }
 
 /* ============ topbar ============ */
-.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+/* min-height: 0 lets .main shrink below its content's intrinsic height —
+   without it, the mobile #app{flex-direction:column-reverse} layout can't
+   constrain .main to the viewport, and .view's internal scroll never
+   engages (its content overflows the reversed flex item instead). Pre-existing
+   bug, surfaced while verifying this pass at 320/375/414/768px. */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 15px 28px; gap: 16px;
@@ -222,6 +237,17 @@ select:focus-visible {
 .view-inner { max-width: 1080px; margin: 0 auto; animation: viewIn .3s var(--ease-out) both; }
 @keyframes viewIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
+/* cascading entrance — each view's top-level blocks (hero, meter, grids,
+   section-head…) settle in on a short stagger instead of popping at once */
+.view-inner > * { animation: sectionIn .5s var(--ease-out) both; }
+.view-inner > *:nth-child(1) { animation-delay: 0s; }
+.view-inner > *:nth-child(2) { animation-delay: .06s; }
+.view-inner > *:nth-child(3) { animation-delay: .12s; }
+.view-inner > *:nth-child(4) { animation-delay: .18s; }
+.view-inner > *:nth-child(5) { animation-delay: .24s; }
+.view-inner > *:nth-child(n+6) { animation-delay: .28s; }
+@keyframes sectionIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
 /* ============ cards — flat matte ledger paper ============ */
 .card {
   position: relative;
@@ -232,27 +258,56 @@ select:focus-visible {
   padding: 20px;
   transition: box-shadow .2s var(--ease-out), transform .18s var(--ease-out);
 }
+.card:hover { box-shadow: var(--shadow-float); transform: translateY(-2px); }
 .card-title { font-size: 11px; font-weight: 700; color: var(--ink-3); margin-bottom: 5px; }
 .card-sub { font-size: 12px; color: var(--ink-3); }
 
 /* ============ hero ============ */
 .hero {
+  position: relative;
   display: flex; align-items: flex-end; justify-content: space-between;
   gap: 24px; flex-wrap: wrap; margin-bottom: 22px;
 }
+/* a soft ambient bloom seated behind the headline number — reads as depth,
+   not decoration; fades in once, doesn't loop */
+.hero::before {
+  content: "";
+  position: absolute; left: -36px; top: -34px; width: 360px; height: 230px;
+  background: radial-gradient(closest-side, color-mix(in oklch, var(--accent) 16%, transparent), transparent 72%);
+  z-index: -1; pointer-events: none;
+  opacity: 0; animation: bloomIn 1s var(--ease-out) .1s both;
+}
+@keyframes bloomIn { to { opacity: 1; } }
 .hero-left .eyebrow {
   font-size: 11px;
   color: var(--ink-3); margin-bottom: 8px;
 }
 .hero-num {
+  position: relative;
   font-family: var(--font-num);
   font-size: 56px; font-weight: 700; letter-spacing: -0.03em; line-height: 1;
   font-variant-numeric: tabular-nums;
   width: fit-content;
-  border-bottom: 3px double var(--ink);
-  padding-bottom: 6px;
+  padding-bottom: 9px;
 }
-.hero-num.neg { color: var(--critical); border-bottom-color: var(--critical); }
+/* the ledger double-rule draws in left-to-right once the count-up has mostly
+   settled, instead of sitting there static from first paint */
+.hero-num::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+  background:
+    linear-gradient(var(--ink), var(--ink)) 0 0 / 100% 1px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 0 100% / 100% 1px no-repeat;
+  transform: scaleX(0); transform-origin: left;
+  animation: ruleIn .6s var(--ease-out) .35s both;
+}
+@keyframes ruleIn { to { transform: scaleX(1); } }
+.hero-num.neg { color: var(--critical); }
+.hero-num.neg::after {
+  background:
+    linear-gradient(var(--critical), var(--critical)) 0 0 / 100% 1px no-repeat,
+    linear-gradient(var(--critical), var(--critical)) 0 100% / 100% 1px no-repeat;
+}
 .hero-caption { margin-top: 12px; font-size: 14px; color: var(--ink-2); }
 .hero-caption .delta-good { color: var(--good-ink); font-weight: 650; }
 .hero-caption .delta-bad { color: var(--critical); font-weight: 650; }
@@ -272,7 +327,12 @@ select:focus-visible {
 .month-meter .fill {
   position: absolute; top: 0; bottom: 0; left: 0; width: 0;
   border-radius: 4px;
-  background: color-mix(in oklch, var(--accent) 55%, transparent);
+  /* a feathered contrail — solid near the start of the month, fading toward
+     the plane's nose, rather than a flat block of colour */
+  background: linear-gradient(to right,
+    color-mix(in oklch, var(--accent) 60%, transparent) 0%,
+    color-mix(in oklch, var(--accent) 46%, transparent) 70%,
+    color-mix(in oklch, var(--accent) 10%, transparent) 100%);
   transition: width .8s var(--ease-out);
 }
 .month-meter .centerline {
@@ -287,6 +347,10 @@ select:focus-visible {
   animation: planeBob 3s var(--ease-in-out) infinite;
   transition: left .8s var(--ease-out);
 }
+.month-meter .plane::before {
+  content: ""; position: absolute; inset: -11px; z-index: -1; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in oklch, var(--accent) 32%, transparent), transparent 72%);
+}
 @keyframes planeBob {
   0%, 100% { transform: translate(-50%, -55%) rotate(0deg); }
   50% { transform: translate(-50%, -68%) rotate(2deg); }
@@ -297,6 +361,11 @@ select:focus-visible {
 .daily-card { display: flex; flex-direction: column; align-items: center; text-align: center; }
 .daily-card .card-title { margin-bottom: 0; }
 .gauge-wrap { position: relative; width: 168px; height: 168px; margin: 10px 0 4px; }
+.gauge-wrap::before {
+  content: ""; position: absolute; inset: 8px; border-radius: 50%; z-index: -1;
+  background: radial-gradient(circle, color-mix(in oklch, var(--accent) 15%, transparent), transparent 70%);
+  opacity: 0; animation: bloomIn 1s var(--ease-out) .2s both;
+}
 .gauge-wrap svg { transform: rotate(-90deg); display: block; }
 .gauge-track { stroke: var(--surface-2); }
 .gauge-fill {
@@ -336,11 +405,19 @@ select:focus-visible {
   gap: 12px; margin-bottom: 22px;
 }
 .kpi {
-  padding: 15px; cursor: default;
+  padding: 15px; cursor: default; overflow: hidden;
   transition: transform .18s var(--ease-out), box-shadow .18s var(--ease-out);
   animation: viewIn .35s var(--ease-out) both;
 }
-.kpi:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+.kpi::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--accent);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .22s var(--ease-out);
+}
+.kpi:hover { transform: translateY(-3px); box-shadow: var(--shadow-float); }
+.kpi:hover::before { transform: scaleX(1); }
 .kpi-head { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; }
 .kpi-dot { width: 8px; height: 8px; border-radius: 2px; }
 .kpi-label { font-size: 10.5px; color: var(--ink-3); }
@@ -414,12 +491,19 @@ select:focus-visible {
 .day-head span:last-child { font-family: var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none; font-weight: 600; }
 .tx-list { display: flex; flex-direction: column; gap: 1px; border-radius: var(--radius); overflow: hidden; }
 .tx-row {
+  position: relative;
   display: flex; align-items: center; gap: 14px;
   padding: 12px 16px;
   background: var(--surface); border-bottom: 1px solid var(--border);
   animation: rowIn .28s var(--ease-out) both;
   transition: background-color .15s var(--ease-out), opacity .3s, transform .3s var(--ease-out);
 }
+.tx-row::before {
+  content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+  border-radius: 1px; background: var(--accent);
+  transform: scaleY(0); transition: transform .18s var(--ease-out);
+}
+.tx-row:hover::before { transform: scaleY(1); }
 .tx-list .tx-row:first-child { border-radius: var(--radius) var(--radius) 0 0; }
 .tx-list .tx-row:last-child { border-radius: 0 0 var(--radius) var(--radius); border-bottom: none; }
 .tx-list .tx-row:nth-child(odd) { background: color-mix(in oklch, var(--surface-2) 45%, var(--surface)); }
@@ -456,6 +540,7 @@ select:focus-visible {
 .bill-name { font-size: 15px; font-weight: 700; }
 .bill-due { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
 .paid-toggle {
+  position: relative;
   width: 28px; height: 28px; border-radius: var(--radius-sm); flex-shrink: 0;
   border: 2px solid var(--baseline);
   display: grid; place-items: center;
@@ -464,7 +549,19 @@ select:focus-visible {
 }
 .paid-toggle:hover { border-color: var(--good); }
 .paid-toggle:active { transform: scale(.94); }
-.paid-toggle.on { background: var(--good); border-color: var(--good); color: var(--surface); }
+/* the one moment this app is allowed a little celebration — marking a bill
+   paid gets a settle-pop + a single expanding ring, not a persistent bounce */
+.paid-toggle.on {
+  background: var(--good); border-color: var(--good); color: var(--surface);
+  animation: paidPop .4s var(--ease-cel) both;
+}
+.paid-toggle.on::after {
+  content: ""; position: absolute; inset: -4px; border-radius: inherit;
+  border: 2px solid var(--good); pointer-events: none;
+  animation: paidRing .55s var(--ease-out) both;
+}
+@keyframes paidPop { 0% { transform: scale(.85); } 55% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes paidRing { from { transform: scale(1); opacity: .9; } to { transform: scale(1.9); opacity: 0; } }
 .bill-amts { display: flex; align-items: baseline; gap: 6px; }
 .bill-actual { font-size: 21px; font-weight: 700; font-family: var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .bill-of { font-size: 12.5px; color: var(--ink-3); }
@@ -475,7 +572,16 @@ select:focus-visible {
 /* ============ goals ============ */
 .goal-section-title { font-family: var(--font-display); font-size: 16px; font-weight: 700; margin: 6px 0 14px; display: flex; align-items: center; gap: 8px; letter-spacing: -0.005em; }
 .goal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 30px; }
-.goal-card { padding: 20px; display: flex; gap: 18px; align-items: center; animation: viewIn .35s both; }
+.goal-card { padding: 20px; display: flex; gap: 18px; align-items: center; animation: viewIn .35s both; overflow: hidden; }
+/* a single shimmer sweep the moment a goal reads as complete — the JS side
+   already fires confetti() on this transition; this is the card's own echo */
+.goal-card:has(.goal-complete)::before {
+  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, color-mix(in oklch, var(--good) 35%, transparent) 46%, transparent 62%);
+  transform: translateX(-130%);
+  animation: shimmerSweep 1.1s var(--ease-cel) .1s both;
+}
+@keyframes shimmerSweep { to { transform: translateX(130%); } }
 .goal-ring { position: relative; width: 86px; height: 86px; flex-shrink: 0; }
 .goal-ring svg { transform: rotate(-90deg); }
 .goal-ring .ring-track { stroke: var(--surface-2); }
@@ -512,6 +618,7 @@ select:focus-visible {
 .modal-backdrop {
   position: fixed; inset: 0; z-index: 50;
   background: oklch(15% 0.02 152 / 0.4);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
   display: grid; place-items: center;
   animation: fadeIn .2s var(--ease-out) both;
 }
@@ -563,7 +670,7 @@ select:focus-visible {
   animation: toastIn .3s var(--ease-out) both;
 }
 .toast.out { animation: toastOut .2s var(--ease-in) both; }
-@keyframes toastIn { from { opacity: 0; transform: translateY(12px); } }
+@keyframes toastIn { from { opacity: 0; transform: translateY(12px) scale(.96); } }
 @keyframes toastOut { to { opacity: 0; transform: translateY(8px); } }
 
 /* ============ confetti ============ */
