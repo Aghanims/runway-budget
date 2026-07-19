@@ -88,7 +88,6 @@ function seedState() {
   return {
     version: 1,
     theme: null, // null = follow system
-    lastCelebratedStreak: 0,
     activeMonth: "2025-04",
     months: {
       "2025-04": { rollover: 0, entries: april },
@@ -108,7 +107,6 @@ function emptyState(keepTheme) {
   return {
     version: 1,
     theme: keepTheme ?? null,
-    lastCelebratedStreak: 0,
     activeMonth: key,
     months: { [key]: { rollover: 0, entries: [] } },
     goals: [],
@@ -128,16 +126,11 @@ function storageWorks() {
 const STORAGE_OK = storageWorks();
 
 /* ---------- state ---------- */
-function normalizeState(s) {
-  if (typeof s.lastCelebratedStreak !== "number") s.lastCelebratedStreak = 0;
-  return s;
-}
 let state;
 try {
   state = JSON.parse(localStorage.getItem(STORE_KEY)) || seedState();
   if (!state.months) state = seedState();
 } catch { state = seedState(); }
-normalizeState(state);
 
 let saveFailed = false;
 function save() {
@@ -169,7 +162,7 @@ function importBackup(file) {
     try {
       const parsed = JSON.parse(reader.result);
       if (!parsed || typeof parsed !== "object" || !parsed.months) throw new Error("not a Runway backup");
-      state = normalizeState(parsed);
+      state = parsed;
       save(); applyTheme(); currentView = "dashboard"; render();
       toast("Backup restored");
     } catch {
@@ -232,7 +225,7 @@ async function pullThenPush() {
     const cloudT = data ? Date.parse(data.updated_at) : 0;
     if (data && cloudT > (state.updatedAt || 0)) {
       applyingCloud = true;
-      state = normalizeState(data.data);
+      state = data.data;
       state.updatedAt = cloudT;
       try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {}
       applyTheme(); render();
@@ -493,22 +486,7 @@ function renderDashboard(view) {
   const sim = dailyBudgetSeries(key);
   const dayNow = sim.today;
   const daysLeft = isCurrent ? days - dayNow + 1 : 0;
-  const todayRow = sim.series[dayNow - 1] || { budget: 0, spent: 0, carryIn: 0 };
-  const todayBudget = todayRow.budget ?? 0;
-  const paceBand = 0.10 * Math.max(0, todayRow.budget);
-  const paneState = (!isCurrent || sim.spendable0 <= 0) ? "cruising"
-    : todayRow.carryIn > paceBand ? "climbing"
-    : todayRow.carryIn < -paceBand ? "descending"
-    : "cruising";
-
-  const streak = isCurrent ? computeStreak() : 0;
-  const STREAK_MILESTONES = [7, 14, 30, 60, 90];
-  if (isCurrent && STREAK_MILESTONES.includes(streak) && state.lastCelebratedStreak < streak) {
-    state.lastCelebratedStreak = streak;
-    save();
-    setTimeout(confetti, 350);
-    setTimeout(() => toast(`${streak}-day streak!`), 350);
-  }
+  const todayBudget = sim.series[dayNow - 1]?.budget ?? 0;
 
   const kpis = ["income", "expense", "bill", "saving", "debt"].map((type, i) => {
     const { planned, actual } = t[type];
@@ -551,7 +529,7 @@ function renderDashboard(view) {
       <div class="month-meter" title="Day ${dayNow} of ${days}">
         <div class="fill" data-w="${(dayNow / days) * 100}"></div>
         <div class="centerline"></div>
-        <div class="plane" data-x="${(dayNow / days) * 100}">${iconPlane(paneState)}</div>
+        <div class="plane" data-x="${(dayNow / days) * 100}">✈️</div>
       </div>
 
       <div class="dash-grid daily-grid">
@@ -605,7 +583,7 @@ function renderDashboard(view) {
     $$(".gauge-fill", view).forEach((el) => (el.style.strokeDashoffset = el.dataset.off));
   });
 
-  renderDailyCard($("#daily-card"), sim, key, streak);
+  renderDailyCard($("#daily-card"), sim, key);
   drawDailyFlow($("#daily-flow"), sim, key);
   drawPaceChart($("#pace-chart"), key);
   drawTopBars($("#top-bars"), key);
@@ -651,45 +629,12 @@ function dailyBudgetSeries(key) {
   return { series, today, isCurrent, spendable0, reserved, days };
 }
 
-/* ---------- streak: consecutive on-budget days, ending yesterday ---------- */
-function computeStreak() {
-  let firstDate = null;
-  for (const key in state.months) {
-    for (const e of state.months[key].entries) {
-      if (!firstDate || e.date < firstDate) firstDate = e.date;
-    }
-  }
-  if (!firstDate) return 0;
-
-  let count = 0;
-  const cursor = new Date();
-  cursor.setDate(cursor.getDate() - 1); // start at yesterday; today isn't finished yet
-  let cachedKey = null, cachedSim = null;
-  for (let i = 0; i < 3650; i++) {
-    const y = cursor.getFullYear(), mo = cursor.getMonth() + 1, d = cursor.getDate();
-    const key = `${y}-${String(mo).padStart(2, "0")}`;
-    const iso = `${key}-${String(d).padStart(2, "0")}`;
-    if (iso < firstDate) break; // before any recorded activity — stop, don't break the streak
-
-    if (key !== cachedKey) { cachedSim = dailyBudgetSeries(key); cachedKey = key; }
-    if (cachedSim.spendable0 > 0) {
-      const row = cachedSim.series[d - 1];
-      if (!row || row.spent > row.budget) break; // overspent — streak broken
-      count++;
-    }
-    // spendable0 <= 0: no budget configured that day — skip without counting or breaking
-
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return count;
-}
-
 /* --- today's budget gauge card --- */
-function renderDailyCard(card, sim, key, streak) {
+function renderDailyCard(card, sim, key) {
   const { series, today, isCurrent, spendable0, reserved, days } = sim;
   if (spendable0 <= 0) {
     card.innerHTML = `<div class="card-title">Daily budget</div>
-      <div class="empty-state" style="padding:26px 10px"><div class="big">${iconCloud()}</div>
+      <div class="empty-state" style="padding:26px 10px"><div class="big">🌫️</div>
       <p>Add income (or a rollover) to unlock your daily budget.</p></div>`;
     return;
   }
@@ -722,13 +667,12 @@ function renderDailyCard(card, sim, key, streak) {
         left >= 0 ? "left today" : "over today")}
       <div class="gauge-sub">spent <b>${fmt(spent)}</b> of <b>${fmt(Math.max(0, budget))}</b> today</div>
       <div class="chip-row">
-        ${streak > 0 ? `<span class="stat-chip streak-chip">${iconStreakFlame()}${streak} day streak</span>` : ""}
         ${Math.abs(row.carryIn) >= 0.5
-          ? `<span class="stat-chip ${row.carryIn > 0 ? "pos" : "neg"}" style="animation-delay:.08s">${row.carryIn > 0
+          ? `<span class="stat-chip ${row.carryIn > 0 ? "pos" : "neg"}">${row.carryIn > 0
               ? "＋" + fmt(row.carryIn) + " rolled in from yesterday 🎁"
               : "−" + fmt(-row.carryIn) + " owed from yesterday"}</span>`
           : ""}
-        ${tomorrow ? `<span class="stat-chip" style="animation-delay:.16s">tomorrow ≈ ${fmt(Math.max(0, tomorrow.budget))} if you stop now</span>` : ""}
+        ${tomorrow ? `<span class="stat-chip" style="animation-delay:.12s">tomorrow ≈ ${fmt(Math.max(0, tomorrow.budget))} if you stop now</span>` : ""}
       </div>`;
   } else {
     const totalSpent = series.reduce((s, r) => s + r.spent, 0);
@@ -930,7 +874,7 @@ function drawTopBars(wrap, key) {
     .sort((a, b) => b.actual - a.actual)
     .slice(0, 6);
   if (!top.length) {
-    wrap.innerHTML = `<div class="empty-state" style="padding:30px 10px"><div class="big">${iconSprout()}</div><p>No spending yet this month.</p></div>`;
+    wrap.innerHTML = `<div class="empty-state" style="padding:30px 10px"><div class="big">🌱</div><p>No spending yet this month.</p></div>`;
     return;
   }
   const max = top[0].actual;
@@ -982,7 +926,7 @@ function renderTransactions(view) {
 
   let body = "";
   if (!list.length) {
-    body = `<div class="empty-state"><div class="big">${iconNotepad()}</div>
+    body = `<div class="empty-state"><div class="big">🗒️</div>
       <p>No ${txFilter === "all" ? "entries" : TYPES[txFilter].label.toLowerCase()} in ${monthName(state.activeMonth)} yet.</p>
       <button class="primary-btn" onclick="openEntryModal()">＋ Add your first entry</button></div>`;
   } else {
@@ -1075,7 +1019,7 @@ function renderBills(view) {
         </div>`;
       }).join("")}
     </div>`
-    : `<div class="empty-state"><div class="big">${iconInbox()}</div><p>No bills for ${monthName(state.activeMonth)}.</p>
+    : `<div class="empty-state"><div class="big">📮</div><p>No bills for ${monthName(state.activeMonth)}.</p>
        <button class="primary-btn" onclick="openEntryModal(null,'bill')">＋ Add a bill</button></div>`}
   </div>`;
 
