@@ -35,3 +35,11 @@ function iconInbox() {
     <path d="M8 20h7l2 4h6l2-4h7"/>
   </svg>`;
 }
+
+/* states: "climbing" | "cruising" | "descending" */
+function iconPlane(state) {
+  return `<svg class="plane-ico state-${state}" viewBox="0 0 32 20" width="22" height="14" fill="none" aria-hidden="true">
+    <path class="plane-trail" d="M2 10 H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path class="plane-body" d="M14 4 L28 10 L14 16 L18 10 Z" fill="currentColor"/>
+  </svg>`;
+}

@@ -370,6 +370,21 @@ select:focus-visible {
   0%, 100% { transform: translate(-50%, -55%) rotate(0deg); }
   50% { transform: translate(-50%, -68%) rotate(2deg); }
 }
+.plane-ico {
+  display: block; color: var(--ink-2);
+  transform: rotate(0deg);
+  transition: color .3s var(--ease-out), transform .4s var(--ease-out);
+}
+.plane-ico .plane-trail { opacity: .55; }
+.plane-ico.state-climbing { color: var(--c-income); transform: rotate(-14deg); }
+.plane-ico.state-descending {
+  color: var(--c-expense);
+  animation: planeWobble 1.4s var(--ease-in-out) infinite;
+}
+@keyframes planeWobble {
+  0%, 100% { transform: rotate(14deg); }
+  50% { transform: rotate(19deg); }
+}
 
 /* ============ today's budget gauge ============ */
 .daily-grid { grid-template-columns: 1fr 1.9fr; }

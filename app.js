@@ -486,7 +486,13 @@ function renderDashboard(view) {
   const sim = dailyBudgetSeries(key);
   const dayNow = sim.today;
   const daysLeft = isCurrent ? days - dayNow + 1 : 0;
-  const todayBudget = sim.series[dayNow - 1]?.budget ?? 0;
+  const todayRow = sim.series[dayNow - 1] || { budget: 0, spent: 0, carryIn: 0 };
+  const todayBudget = todayRow.budget ?? 0;
+  const paceBand = 0.10 * Math.max(0, todayRow.budget);
+  const paneState = (!isCurrent || sim.spendable0 <= 0) ? "cruising"
+    : todayRow.carryIn > paceBand ? "climbing"
+    : todayRow.carryIn < -paceBand ? "descending"
+    : "cruising";
 
   const kpis = ["income", "expense", "bill", "saving", "debt"].map((type, i) => {
     const { planned, actual } = t[type];
@@ -529,7 +535,7 @@ function renderDashboard(view) {
       <div class="month-meter" title="Day ${dayNow} of ${days}">
         <div class="fill" data-w="${(dayNow / days) * 100}"></div>
         <div class="centerline"></div>
-        <div class="plane" data-x="${(dayNow / days) * 100}">✈️</div>
+        <div class="plane" data-x="${(dayNow / days) * 100}">${iconPlane(paneState)}</div>
       </div>
 
       <div class="dash-grid daily-grid">
