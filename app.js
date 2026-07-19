@@ -128,12 +128,16 @@ function storageWorks() {
 const STORAGE_OK = storageWorks();
 
 /* ---------- state ---------- */
+function normalizeState(s) {
+  if (typeof s.lastCelebratedStreak !== "number") s.lastCelebratedStreak = 0;
+  return s;
+}
 let state;
 try {
   state = JSON.parse(localStorage.getItem(STORE_KEY)) || seedState();
   if (!state.months) state = seedState();
 } catch { state = seedState(); }
-if (typeof state.lastCelebratedStreak !== "number") state.lastCelebratedStreak = 0;
+normalizeState(state);
 
 let saveFailed = false;
 function save() {
@@ -165,7 +169,7 @@ function importBackup(file) {
     try {
       const parsed = JSON.parse(reader.result);
       if (!parsed || typeof parsed !== "object" || !parsed.months) throw new Error("not a Runway backup");
-      state = parsed;
+      state = normalizeState(parsed);
       save(); applyTheme(); currentView = "dashboard"; render();
       toast("Backup restored");
     } catch {
@@ -228,7 +232,7 @@ async function pullThenPush() {
     const cloudT = data ? Date.parse(data.updated_at) : 0;
     if (data && cloudT > (state.updatedAt || 0)) {
       applyingCloud = true;
-      state = data.data;
+      state = normalizeState(data.data);
       state.updatedAt = cloudT;
       try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {}
       applyTheme(); render();
