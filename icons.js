@@ -43,3 +43,9 @@ function iconPlane(state) {
     <path class="plane-body" d="M14 4 L28 10 L14 16 L18 10 Z" fill="currentColor"/>
   </svg>`;
 }
+
+function iconStreakFlame() {
+  return `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px">
+    <path d="M8 14c-3 0-4.5-2-4.5-4.3C3.5 7 6 5.5 6 3c1.8 1 3 2.8 3 5 .8-.6 1.2-1.6 1.2-2.6C11.8 6.5 12.5 8 12.5 9.7 12.5 12 10.9 14 8 14z"/>
+  </svg>`;
+}

@@ -421,6 +421,7 @@ select:focus-visible {
 .stat-chip.pos { background: var(--c-income-soft); color: var(--good-ink); border-color: transparent; }
 .stat-chip.neg { background: var(--c-debt-soft); color: var(--critical); border-color: transparent; }
 @keyframes chipIn { from { opacity: 0; transform: translateY(6px); } }
+.stat-chip.streak-chip { background: var(--c-bill-soft); color: var(--ink); border-color: transparent; }
 
 /* daily flow bars grow from the baseline */
 .daybar {

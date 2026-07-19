@@ -88,6 +88,7 @@ function seedState() {
   return {
     version: 1,
     theme: null, // null = follow system
+    lastCelebratedStreak: 0,
     activeMonth: "2025-04",
     months: {
       "2025-04": { rollover: 0, entries: april },
@@ -107,6 +108,7 @@ function emptyState(keepTheme) {
   return {
     version: 1,
     theme: keepTheme ?? null,
+    lastCelebratedStreak: 0,
     activeMonth: key,
     months: { [key]: { rollover: 0, entries: [] } },
     goals: [],
@@ -131,6 +133,7 @@ try {
   state = JSON.parse(localStorage.getItem(STORE_KEY)) || seedState();
   if (!state.months) state = seedState();
 } catch { state = seedState(); }
+if (typeof state.lastCelebratedStreak !== "number") state.lastCelebratedStreak = 0;
 
 let saveFailed = false;
 function save() {
@@ -494,6 +497,15 @@ function renderDashboard(view) {
     : todayRow.carryIn < -paceBand ? "descending"
     : "cruising";
 
+  const streak = isCurrent ? computeStreak() : 0;
+  const STREAK_MILESTONES = [7, 14, 30, 60, 90];
+  if (isCurrent && STREAK_MILESTONES.includes(streak) && state.lastCelebratedStreak < streak) {
+    state.lastCelebratedStreak = streak;
+    save();
+    setTimeout(confetti, 350);
+    setTimeout(() => toast(`${streak}-day streak!`), 350);
+  }
+
   const kpis = ["income", "expense", "bill", "saving", "debt"].map((type, i) => {
     const { planned, actual } = t[type];
     const ratio = planned > 0 ? actual / planned : 0;
@@ -589,7 +601,7 @@ function renderDashboard(view) {
     $$(".gauge-fill", view).forEach((el) => (el.style.strokeDashoffset = el.dataset.off));
   });
 
-  renderDailyCard($("#daily-card"), sim, key);
+  renderDailyCard($("#daily-card"), sim, key, streak);
   drawDailyFlow($("#daily-flow"), sim, key);
   drawPaceChart($("#pace-chart"), key);
   drawTopBars($("#top-bars"), key);
@@ -635,8 +647,41 @@ function dailyBudgetSeries(key) {
   return { series, today, isCurrent, spendable0, reserved, days };
 }
 
+/* ---------- streak: consecutive on-budget days, ending yesterday ---------- */
+function computeStreak() {
+  let firstDate = null;
+  for (const key in state.months) {
+    for (const e of state.months[key].entries) {
+      if (!firstDate || e.date < firstDate) firstDate = e.date;
+    }
+  }
+  if (!firstDate) return 0;
+
+  let count = 0;
+  const cursor = new Date();
+  cursor.setDate(cursor.getDate() - 1); // start at yesterday; today isn't finished yet
+  let cachedKey = null, cachedSim = null;
+  for (let i = 0; i < 3650; i++) {
+    const y = cursor.getFullYear(), mo = cursor.getMonth() + 1, d = cursor.getDate();
+    const key = `${y}-${String(mo).padStart(2, "0")}`;
+    const iso = `${key}-${String(d).padStart(2, "0")}`;
+    if (iso < firstDate) break; // before any recorded activity — stop, don't break the streak
+
+    if (key !== cachedKey) { cachedSim = dailyBudgetSeries(key); cachedKey = key; }
+    if (cachedSim.spendable0 > 0) {
+      const row = cachedSim.series[d - 1];
+      if (!row || row.spent > row.budget) break; // overspent — streak broken
+      count++;
+    }
+    // spendable0 <= 0: no budget configured that day — skip without counting or breaking
+
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return count;
+}
+
 /* --- today's budget gauge card --- */
-function renderDailyCard(card, sim, key) {
+function renderDailyCard(card, sim, key, streak) {
   const { series, today, isCurrent, spendable0, reserved, days } = sim;
   if (spendable0 <= 0) {
     card.innerHTML = `<div class="card-title">Daily budget</div>
@@ -673,12 +718,13 @@ function renderDailyCard(card, sim, key) {
         left >= 0 ? "left today" : "over today")}
       <div class="gauge-sub">spent <b>${fmt(spent)}</b> of <b>${fmt(Math.max(0, budget))}</b> today</div>
       <div class="chip-row">
+        ${streak > 0 ? `<span class="stat-chip streak-chip">${iconStreakFlame()}${streak} day streak</span>` : ""}
         ${Math.abs(row.carryIn) >= 0.5
-          ? `<span class="stat-chip ${row.carryIn > 0 ? "pos" : "neg"}">${row.carryIn > 0
+          ? `<span class="stat-chip ${row.carryIn > 0 ? "pos" : "neg"}" style="animation-delay:.08s">${row.carryIn > 0
               ? "＋" + fmt(row.carryIn) + " rolled in from yesterday 🎁"
               : "−" + fmt(-row.carryIn) + " owed from yesterday"}</span>`
           : ""}
-        ${tomorrow ? `<span class="stat-chip" style="animation-delay:.12s">tomorrow ≈ ${fmt(Math.max(0, tomorrow.budget))} if you stop now</span>` : ""}
+        ${tomorrow ? `<span class="stat-chip" style="animation-delay:.16s">tomorrow ≈ ${fmt(Math.max(0, tomorrow.budget))} if you stop now</span>` : ""}
       </div>`;
   } else {
     const totalSpent = series.reduce((s, r) => s + r.spent, 0);
