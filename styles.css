@@ -71,6 +71,15 @@ select:focus-visible {
   font-weight: 700;
 }
 
+/* ============ boot sequence ============ */
+/* The sidebar + topbar are static markup, rendered once and never rebuilt by
+   JS (unlike .view-inner's per-card stagger, which replays on every view
+   switch) — so a plain CSS animation here fires exactly once, on first
+   paint. That's the one deliberate, orchestrated page-load moment; nav
+   clicks after that stay quiet. */
+@keyframes bootRise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+@keyframes bootDrop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
 /* ============ sidebar ============ */
 .sidebar {
   width: 232px; flex-shrink: 0;
@@ -80,7 +89,7 @@ select:focus-visible {
   background: var(--surface);
   transition: background-color .3s ease;
 }
-.brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 24px; }
+.brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 24px; animation: bootRise .4s var(--ease-out) both; }
 .brand-mark {
   width: 40px; height: 40px; border-radius: var(--radius-sm);
   background: var(--accent);
@@ -101,7 +110,12 @@ select:focus-visible {
   padding: 10px 12px; border-radius: var(--radius-sm);
   font-size: 14px; font-weight: 550; color: var(--ink-2);
   transition: background-color .16s var(--ease-out), color .16s var(--ease-out);
+  animation: bootRise .36s var(--ease-out) both;
 }
+.nav-btn:nth-child(1) { animation-delay: .09s; }
+.nav-btn:nth-child(2) { animation-delay: .14s; }
+.nav-btn:nth-child(3) { animation-delay: .19s; }
+.nav-btn:nth-child(4) { animation-delay: .24s; }
 .nav-btn:hover { background: var(--surface-2); color: var(--ink); }
 .nav-btn:hover .nav-ico { transform: translateY(-1px); }
 .nav-btn:active { transform: translateY(1px); }
@@ -144,7 +158,7 @@ select:focus-visible {
   font-size: 11.5px; line-height: 1.45; font-weight: 600;
 }
 
-.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 3px; }
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 3px; animation: bootRise .4s var(--ease-out) .3s both; }
 .ghost-btn {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 12px; border-radius: var(--radius-sm);
@@ -167,6 +181,7 @@ select:focus-visible {
   border-bottom: 1px solid var(--border);
   background: var(--page);
   z-index: 5;
+  animation: bootDrop .4s var(--ease-out) .12s both;
 }
 .month-switch { display: flex; align-items: center; gap: 6px; }
 .icon-btn {
@@ -688,6 +703,7 @@ select:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
     scroll-behavior: auto !important;
