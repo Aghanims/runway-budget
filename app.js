@@ -634,7 +634,7 @@ function renderDailyCard(card, sim, key) {
   const { series, today, isCurrent, spendable0, reserved, days } = sim;
   if (spendable0 <= 0) {
     card.innerHTML = `<div class="card-title">Daily budget</div>
-      <div class="empty-state" style="padding:26px 10px"><div class="big">🌫️</div>
+      <div class="empty-state" style="padding:26px 10px"><div class="big">${iconCloud()}</div>
       <p>Add income (or a rollover) to unlock your daily budget.</p></div>`;
     return;
   }
@@ -874,7 +874,7 @@ function drawTopBars(wrap, key) {
     .sort((a, b) => b.actual - a.actual)
     .slice(0, 6);
   if (!top.length) {
-    wrap.innerHTML = `<div class="empty-state" style="padding:30px 10px"><div class="big">🌱</div><p>No spending yet this month.</p></div>`;
+    wrap.innerHTML = `<div class="empty-state" style="padding:30px 10px"><div class="big">${iconSprout()}</div><p>No spending yet this month.</p></div>`;
     return;
   }
   const max = top[0].actual;
@@ -926,7 +926,7 @@ function renderTransactions(view) {
 
   let body = "";
   if (!list.length) {
-    body = `<div class="empty-state"><div class="big">🗒️</div>
+    body = `<div class="empty-state"><div class="big">${iconNotepad()}</div>
       <p>No ${txFilter === "all" ? "entries" : TYPES[txFilter].label.toLowerCase()} in ${monthName(state.activeMonth)} yet.</p>
       <button class="primary-btn" onclick="openEntryModal()">＋ Add your first entry</button></div>`;
   } else {
@@ -1019,7 +1019,7 @@ function renderBills(view) {
         </div>`;
       }).join("")}
     </div>`
-    : `<div class="empty-state"><div class="big">📮</div><p>No bills for ${monthName(state.activeMonth)}.</p>
+    : `<div class="empty-state"><div class="big">${iconInbox()}</div><p>No bills for ${monthName(state.activeMonth)}.</p>
        <button class="primary-btn" onclick="openEntryModal(null,'bill')">＋ Add a bill</button></div>`}
   </div>`;
 
