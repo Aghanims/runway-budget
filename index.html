@@ -12,48 +12,61 @@
 </head>
 <body>
   <div id="app">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">🛫</div>
-        <div class="brand-text">
-          <span class="brand-name">Runway</span>
-          <span class="brand-tag">know what's left</span>
+    <nav class="topnav" id="topnav">
+      <div class="topnav-inner">
+        <div class="brand">
+          <div class="brand-mark">🛫</div>
+          <div class="brand-text">
+            <span class="brand-name">Runway</span>
+            <span class="brand-tag">know what's left</span>
+          </div>
         </div>
-      </div>
 
-      <nav class="nav">
-        <button class="nav-btn active" data-view="dashboard">
-          <span class="nav-ico">◧</span><span>Dashboard</span>
-        </button>
-        <button class="nav-btn" data-view="transactions">
-          <span class="nav-ico">⇅</span><span>Transactions</span>
-        </button>
-        <button class="nav-btn" data-view="bills">
-          <span class="nav-ico">✓</span><span>Bills</span>
-        </button>
-        <button class="nav-btn" data-view="goals">
-          <span class="nav-ico">◎</span><span>Goals</span>
-        </button>
-      </nav>
+        <div class="nav-links liquid-glass liquid-glass-strong" id="nav-links">
+          <button class="nav-btn active" data-view="dashboard">
+            <span class="nav-ico">◧</span><span>Dashboard</span>
+          </button>
+          <button class="nav-btn" data-view="transactions">
+            <span class="nav-ico">⇅</span><span>Transactions</span>
+          </button>
+          <button class="nav-btn" data-view="bills">
+            <span class="nav-ico">✓</span><span>Bills</span>
+          </button>
+          <button class="nav-btn" data-view="goals">
+            <span class="nav-ico">◎</span><span>Goals</span>
+          </button>
 
-      <div id="storage-warning" class="storage-warning" hidden>
-        ⚠️ This browser won't save your data. Back up to a file after every session.
-      </div>
+          <span class="nav-sep" aria-hidden="true"></span>
 
-      <div class="sidebar-foot">
-        <button id="sync-account" class="ghost-btn" title="Sync your data across devices">
-          <span id="sync-dot" class="sync-dot off"></span><span id="sync-label">Sync</span>
+          <div class="more-wrap">
+            <button id="more-toggle" class="nav-more-btn" aria-haspopup="true" aria-expanded="false" title="More options">⋯</button>
+            <div id="more-panel" class="more-panel liquid-glass liquid-glass-strong" hidden>
+              <div id="storage-warning" class="storage-warning" hidden>
+                ⚠️ This browser won't save your data. Back up to a file after every session.
+              </div>
+              <button id="sync-account" class="ghost-btn" title="Sync your data across devices">
+                <span id="sync-dot" class="sync-dot off"></span><span id="sync-label">Sync</span>
+              </button>
+              <button id="theme-toggle" class="ghost-btn" title="Toggle theme">
+                <span class="theme-ico">◐</span><span class="theme-label">Theme</span>
+              </button>
+              <button id="import-entries" class="ghost-btn" title="Bulk-import transactions">⇩ Import</button>
+              <button id="backup-file" class="ghost-btn" title="Download all your data as a backup file">⬇ Backup to file</button>
+              <button id="restore-file" class="ghost-btn" title="Restore data from a backup file">⬆ Restore from file</button>
+              <input type="file" id="restore-input" accept="application/json" hidden>
+              <button id="start-fresh" class="ghost-btn subtle" title="Clear everything and start at zero">Start fresh</button>
+              <button id="reset-demo" class="ghost-btn subtle" title="Restore the sample April data">Reset sample data</button>
+            </div>
+          </div>
+
+          <button id="add-entry" class="primary-btn">＋ Add entry</button>
+        </div>
+
+        <button id="mobile-nav-toggle" class="mobile-nav-btn liquid-glass" aria-label="Toggle menu" aria-expanded="false">
+          <span class="hbar"></span><span class="hbar"></span><span class="hbar"></span>
         </button>
-        <button id="theme-toggle" class="ghost-btn" title="Toggle theme">
-          <span class="theme-ico">◐</span><span class="theme-label">Theme</span>
-        </button>
-        <button id="backup-file" class="ghost-btn" title="Download all your data as a backup file">⬇ Backup to file</button>
-        <button id="restore-file" class="ghost-btn" title="Restore data from a backup file">⬆ Restore from file</button>
-        <input type="file" id="restore-input" accept="application/json" hidden>
-        <button id="start-fresh" class="ghost-btn subtle" title="Clear everything and start at zero">Start fresh</button>
-        <button id="reset-demo" class="ghost-btn subtle" title="Restore the sample April data">Reset sample data</button>
       </div>
-    </aside>
+    </nav>
 
     <main class="main">
       <header class="topbar">
@@ -64,8 +77,6 @@
         </div>
         <div class="topbar-right">
           <div class="mini-left" id="mini-left" title="Left to spend this month"></div>
-          <button id="import-entries" class="ghost-btn" title="Bulk-import transactions">⇩ Import</button>
-          <button id="add-entry" class="primary-btn">＋ Add entry</button>
         </div>
       </header>
 

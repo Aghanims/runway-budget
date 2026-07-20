@@ -510,6 +510,11 @@ function renderDashboard(view) {
   view.innerHTML = `
     <div class="view-inner">
       <div class="hero">
+        <div class="hero-video-layer" aria-hidden="true">
+          <video class="hero-video" autoplay muted loop playsinline
+            src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260702_092026_dd05b805-ea0f-40b2-8c52-332b88502592.mp4"></video>
+          <div class="hero-veil"></div>
+        </div>
         <div class="hero-left">
           <div class="eyebrow">Left to spend · ${monthName(key)}</div>
           <div class="hero-num ${t.left < 0 ? "neg" : ""}" id="hero-num">${fmtSigned(round2(t.left))}</div>
@@ -1380,6 +1385,41 @@ $("#theme-toggle").addEventListener("click", () => {
   save(); applyTheme();
 });
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+/* ---------- nav (topnav pill + more menu + mobile overlay) ---------- */
+function closeMorePanel() {
+  $("#more-panel").hidden = true;
+  $("#more-toggle").setAttribute("aria-expanded", "false");
+}
+$("#more-toggle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const willOpen = $("#more-panel").hidden;
+  $("#more-panel").hidden = !willOpen;
+  e.currentTarget.setAttribute("aria-expanded", String(willOpen));
+});
+document.addEventListener("click", (e) => {
+  if (!$("#more-panel").hidden && !e.target.closest(".more-wrap")) closeMorePanel();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeMorePanel();
+});
+
+function closeMobileNav() {
+  $("#topnav").classList.remove("nav-open");
+  $("#mobile-nav-toggle").setAttribute("aria-expanded", "false");
+}
+$("#mobile-nav-toggle").addEventListener("click", () => {
+  const open = $("#topnav").classList.toggle("nav-open");
+  $("#mobile-nav-toggle").setAttribute("aria-expanded", String(open));
+});
+// Any action taken inside the nav pill — a view link, add entry, or one of
+// the "more" actions — collapses the mobile overlay and the desktop
+// dropdown, matching lumora's menu-closes-on-selection behaviour.
+$("#nav-links").addEventListener("click", (e) => {
+  if (!e.target.closest("button, a")) return;
+  closeMobileNav();
+  closeMorePanel();
+});
 
 /* ---------- global wiring ---------- */
 $$(".nav-btn").forEach((b) =>
