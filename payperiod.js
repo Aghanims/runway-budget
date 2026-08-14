@@ -170,10 +170,61 @@
     return store[index];
   }
 
+  function periodSeries(pay, months, index, todayISO) {
+    const r = periodRange(pay, index);
+    const days = r.days;
+    const entries = entriesInRange(months, r.startISO, r.endISO);
+    const potInfo = periodPot(pay, months, index, {}, todayISO);
+
+    const spent = new Array(days).fill(0);
+    for (const e of entries) {
+      if (!OUTFLOW[e.type]) continue;
+      const i = daysBetween(r.startISO, e.date);
+      if (i >= 0 && i < days) spent[i] += e.actual || 0;
+    }
+
+    const totalOutflow = outflowIn(entries);
+    const currentIndex = periodIndexFor(pay, todayISO);
+    let todayIdx;
+    if (totalOutflow === 0) {
+      todayIdx = -1;
+    } else if (index === currentIndex) {
+      todayIdx = daysBetween(r.startISO, todayISO);
+    } else if (index < currentIndex) {
+      todayIdx = days - 1;
+    } else {
+      todayIdx = -1;
+    }
+
+    /* budget = remaining / daysLeft. On a day already lived, the real
+       spend comes off; on a projected day the budget itself comes off,
+       which leaves every later day at the same figure. */
+    const series = [];
+    let remaining = potInfo.pot;
+    for (let i = 0; i < days; i++) {
+      const budget = remaining / (days - i);
+      series.push({ d: i + 1, dayISO: addDays(r.startISO, i), budget, spent: spent[i] });
+      remaining -= i <= todayIdx ? spent[i] : budget;
+    }
+
+    let spentSoFar = 0;
+    for (let i = 0; i <= todayIdx; i++) spentSoFar += spent[i];
+
+    return {
+      series, todayIdx, today: todayIdx + 1, days,
+      pot: potInfo.pot, rolloverIn: potInfo.rolloverIn,
+      income: potInfo.income, usedExpected: potInfo.usedExpected,
+      spentSoFar, left: potInfo.pot - spentSoFar,
+      isCurrent: index === currentIndex,
+      startISO: r.startISO, endISO: r.endISO, index,
+      spread: true,
+    };
+  }
+
   const PayPeriod = {
     parseISO, toISO, addDays, daysBetween,
     isValid, cycleOf, periodIndexFor, periodRange, currentPeriod,
-    monthKeysFor, entriesInRange, incomeIn, outflowIn, periodPot,
+    monthKeysFor, entriesInRange, incomeIn, outflowIn, periodPot, periodSeries,
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = PayPeriod;

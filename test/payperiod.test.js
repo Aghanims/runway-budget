@@ -207,4 +207,83 @@ test("periodPot treats a logged $0 income entry as real, not missing", () => {
   assert.strictEqual(pot.usedExpected, false);
 });
 
+test("spec scenario: day 1 is pot/14, day 2 is remaining/13", () => {
+  const s = P.periodSeries(PAY, MONTHS_BASIC, 0, "2026-08-13");
+  near(s.series[0].budget, 107.142857, "day 1");
+  near(s.series[1].budget, 113.846154, "day 2");
+});
+
+test("spec scenario: days 2 through 14 are all equal", () => {
+  const s = P.periodSeries(PAY, MONTHS_BASIC, 0, "2026-08-13");
+  for (let i = 2; i < 14; i++) near(s.series[i].budget, s.series[1].budget, "day " + (i + 1));
+});
+
+test("zero spend leaves every day at pot/14", () => {
+  const months = { "2026-08": { entries: [E("income", "2026-08-13", 1500)] } };
+  const s = P.periodSeries(PAY, months, 0, "2026-08-13");
+  for (let i = 0; i < 14; i++) near(s.series[i].budget, 107.142857, "day " + (i + 1));
+});
+
+test("overspending spreads the deficit", () => {
+  const months = { "2026-08": { entries: [
+    E("income", "2026-08-13", 1500), E("expense", "2026-08-13", 300),
+  ] } };
+  const s = P.periodSeries(PAY, months, 0, "2026-08-13");
+  near(s.series[1].budget, 92.307692, "day 2 after a $300 day 1");
+});
+
+test("exhausting the pot yields non-positive budgets without NaN", () => {
+  const months = { "2026-08": { entries: [
+    E("income", "2026-08-13", 1500), E("expense", "2026-08-13", 2000),
+  ] } };
+  const s = P.periodSeries(PAY, months, 0, "2026-08-13");
+  assert.ok(Number.isFinite(s.series[1].budget), "budget must be finite");
+  assert.ok(s.series[1].budget < 0, "budget should be negative, got " + s.series[1].budget);
+  assert.strictEqual(s.left, -500);
+});
+
+test("bills draw down the pot, unlike the month engine", () => {
+  const months = { "2026-08": { entries: [
+    E("income", "2026-08-13", 1500), E("bill", "2026-08-13", 400),
+  ] } };
+  const s = P.periodSeries(PAY, months, 0, "2026-08-13");
+  near(s.series[1].budget, 84.615385, "day 2 after a $400 bill");
+  assert.strictEqual(s.spentSoFar, 400);
+});
+
+test("todayIdx positions today inside the current period", () => {
+  const s = P.periodSeries(PAY, MONTHS_BASIC, 0, "2026-08-16");
+  assert.strictEqual(s.todayIdx, 3);
+  assert.strictEqual(s.today, 4);
+  assert.strictEqual(s.isCurrent, true);
+});
+
+test("a past period treats every day as actual", () => {
+  const s = P.periodSeries(PAY, MONTHS_BASIC, 0, "2026-09-20");
+  assert.strictEqual(s.todayIdx, 13);
+  assert.strictEqual(s.isCurrent, false);
+});
+
+test("a future period projects every day", () => {
+  const pay = { anchor: "2026-08-13", cycleDays: 14, expected: 1400 };
+  const s = P.periodSeries(pay, MONTHS_BASIC, 2, "2026-08-13");
+  assert.strictEqual(s.todayIdx, -1);
+  assert.strictEqual(s.spentSoFar, 0);
+  assert.strictEqual(s.isCurrent, false);
+});
+
+test("series rows carry their own ISO date across a month boundary", () => {
+  const s = P.periodSeries(PAY, MONTHS_BASIC, 1, "2026-09-01");
+  assert.strictEqual(s.series[0].dayISO, "2026-08-27");
+  assert.strictEqual(s.series[13].dayISO, "2026-09-09");
+  assert.strictEqual(s.series[0].d, 1);
+});
+
+test("left equals pot minus spend to date", () => {
+  const s = P.periodSeries(PAY, MONTHS_BASIC, 0, "2026-08-13");
+  assert.strictEqual(s.pot, 1500);
+  assert.strictEqual(s.spentSoFar, 20);
+  assert.strictEqual(s.left, 1480);
+});
+
 console.log(`\n${passed} passing`);
