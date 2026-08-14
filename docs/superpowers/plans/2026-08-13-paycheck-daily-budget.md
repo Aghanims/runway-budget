@@ -331,11 +331,21 @@ test("rollover chain terminates for a far-past anchor", () => {
   assert.ok(Number.isFinite(pot.pot), "pot must be finite, got " + pot.pot);
 });
 
-test("future periods do not compound unspent projected money", () => {
+test("the next period carries the current period's real leftover once", () => {
   const pay = { anchor: "2026-08-13", cycleDays: 14, expected: 1500 };
-  // Today is in period 0. Period 3 is far in the future and has no entries.
-  const future = P.periodPot(pay, MONTHS_BASIC, 3, {}, "2026-08-13");
-  assert.strictEqual(future.pot, 1500 + 1480, "carries period 0's real leftover once, not repeatedly");
+  // Today is in period 0: $1500 in, $20 out, so $1480 carries into period 1.
+  const next = P.periodPot(pay, MONTHS_BASIC, 1, {}, "2026-08-13");
+  assert.strictEqual(next.rolloverIn, 1480);
+  assert.strictEqual(next.pot, 1480 + 1500);
+});
+
+test("later future periods do not compound unspent projected money", () => {
+  const pay = { anchor: "2026-08-13", cycleDays: 14, expected: 1500 };
+  // Period 3 is beyond the one-hop carry, so it is funded by the expected
+  // paycheck alone rather than by three cycles of imaginary surplus.
+  const far = P.periodPot(pay, MONTHS_BASIC, 3, {}, "2026-08-13");
+  assert.strictEqual(far.rolloverIn, 0);
+  assert.strictEqual(far.pot, 1500);
 });
 ```
 
@@ -461,7 +471,7 @@ Then extend the exported object:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node test/payperiod.test.js`
-Expected: PASS — `24 passing`, exit code 0
+Expected: PASS — `25 passing`, exit code 0
 
 - [ ] **Step 5: Commit**
 
@@ -633,7 +643,7 @@ Extend the export:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node test/payperiod.test.js`
-Expected: PASS — `35 passing`, exit code 0
+Expected: PASS — `36 passing`, exit code 0
 
 - [ ] **Step 5: Commit**
 
@@ -681,6 +691,10 @@ function isoToday() {
 function prettyShortISO(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function prettyLongISO(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 /* Period mode is off until a valid state.pay exists; every caller
    treats null as "fall back to the month engine". */
@@ -834,14 +848,11 @@ with:
 In `renderDailyCard`, inside the `if (isCurrent)` branch, replace the date line and the chip row (lines 666–681) with:
 
 ```js
-    const dateStr = spread
-      ? new Date(...series[today - 1].dayISO.split("-").map((v, i) => (i === 1 ? Number(v) - 1 : Number(v))))
-          .toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-      : new Date(yy, mm - 1, today).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    const dateStr = prettyLongISO(series[today - 1].dayISO);
     /* In spread mode nothing arrives from yesterday specifically — the
        surplus is shared by every earlier day — so the chip reports the
        per-day gain over the flat baseline instead. */
-    const gain = spread ? budget - sim.pot / days : row.carryIn;
+    const gain = spread ? budget - pot / days : row.carryIn;
     const gainLabel = spread
       ? (gain > 0 ? "＋" + fmt(gain) + "/day from underspending" : "−" + fmt(-gain) + "/day from overspending")
       : (gain > 0 ? "＋" + fmt(gain) + " rolled in from yesterday 🎁" : "−" + fmt(-gain) + " owed from yesterday");
@@ -857,6 +868,8 @@ In `renderDailyCard`, inside the `if (isCurrent)` branch, replace the date line 
         ${tomorrow ? `<span class="stat-chip" style="animation-delay:.12s">tomorrow ≈ ${fmt(Math.max(0, tomorrow.budget))} if you stop now</span>` : ""}
       </div>`;
 ```
+
+`dateStr` now comes from `dayISO` in both engines (Task 6 Step 1 adds `dayISO` to the month engine's rows too), so `const [yy, mm] = key.split("-").map(Number);` at line 657 becomes unused — delete it. `key` is still used by `monthName(key)` in the non-current branch, so the parameter stays.
 
 - [ ] **Step 4: Fix the non-current branch**
 
@@ -970,7 +983,7 @@ In `drawDailyFlow`, replace lines 748–762 (from `const tip =` through the clos
 }
 ```
 
-This deletes the now-unused `const [yy, mm] = key.split("-").map(Number);` line — remove it.
+This deletes the now-unused `const [yy, mm] = key.split("-").map(Number);` line — remove it. That leaves `key` unused throughout `drawDailyFlow`, so drop the parameter from the signature (`function drawDailyFlow(wrap, sim) {`) and from its single call site in `renderDashboard` (`drawDailyFlow($("#daily-flow"), psim || sim);`).
 
 - [ ] **Step 4: Update the chart's subtitle**
 
@@ -1012,7 +1025,7 @@ git commit -m "feat: make the daily flow chart pay-period aware"
 
 - [ ] **Step 1: Add the more-panel button**
 
-In `index.html`, insert immediately after line 57 (`<button id="start-fresh" …>`… no — insert *before* it, so destructive actions stay last), i.e. after the `restore-input` line 56:
+In `index.html`, insert a new line directly after line 56 (`<input type="file" id="restore-input" …>`) and before line 57 (`<button id="start-fresh" …>`), so the destructive "Start fresh" and "Reset sample data" actions stay last in the panel:
 
 ```html
               <button id="pay-schedule" class="ghost-btn" title="Set your paycheck cycle">🗓 Pay schedule</button>
@@ -1133,7 +1146,7 @@ Append to `styles.css`:
 
 - [ ] **Step 5: Verify end to end**
 
-Run: `node test/payperiod.test.js` — expected PASS, `35 passing`.
+Run: `node test/payperiod.test.js` — expected PASS, `36 passing`.
 
 Then open `index.html` in a fresh profile (or run `delete state.pay; save(); render()` in the console):
 1. The dashboard shows the dashed **Set your pay schedule** prompt; everything else is the month view.
