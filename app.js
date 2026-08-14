@@ -481,18 +481,18 @@ function confetti() {
    ============================================================ */
 let currentView = "dashboard";
 
+/* The topbar figure has to agree with whatever the hero is showing, or the
+   two read as contradictory. Both live here so they can't drift apart. */
+function updateMiniLeft() {
+  const psim = payPeriodSim();
+  const left = psim ? psim.left : monthTotals(state.activeMonth).left;
+  $("#mini-left").innerHTML = `Left to spend&ensp;<strong>${fmtSigned(round2(left))}</strong>`;
+  $("#mini-left").title = psim ? "Left to spend this pay period" : "Left to spend this month";
+}
+
 function render() {
   $("#month-label").textContent = monthName(state.activeMonth);
-  const totals = monthTotals(state.activeMonth);
-  const miniPsim = payPeriodSim();
-  if (miniPsim) {
-    $("#mini-left").innerHTML =
-      `Left to spend&ensp;<strong>${fmtSigned(round2(miniPsim.left))}</strong>`;
-    $("#mini-left").title = "Left to spend this pay period";
-  } else {
-    $("#mini-left").innerHTML =
-      `Left to spend&ensp;<strong>${fmtSigned(round2(totals.left))}</strong>`;
-  }
+  updateMiniLeft();
 
   $$(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === currentView));
   const view = $("#view");
@@ -1090,8 +1090,7 @@ function renderBills(view) {
       bill.paid = !bill.paid;
       if (bill.paid && !bill.actual) bill.actual = bill.planned; // sensible default
       save(); renderBills(view);
-      const totals = monthTotals(state.activeMonth);
-      $("#mini-left").innerHTML = `Left to spend&ensp;<strong>${fmtSigned(round2(totals.left))}</strong>`;
+      updateMiniLeft();
       toast(bill.paid ? `${bill.name} marked paid ✓` : `${bill.name} marked unpaid`);
     }));
 }
