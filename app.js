@@ -615,8 +615,8 @@ function renderDashboard(view) {
     $$(".gauge-fill", view).forEach((el) => (el.style.strokeDashoffset = el.dataset.off));
   });
 
-  renderDailyCard($("#daily-card"), sim, key);
-  drawDailyFlow($("#daily-flow"), sim, key);
+  renderDailyCard($("#daily-card"), psim || sim, key);
+  drawDailyFlow($("#daily-flow"), psim || sim, key);
   drawPaceChart($("#pace-chart"), key);
   drawTopBars($("#top-bars"), key);
   drawAllocation(t);
@@ -663,8 +663,9 @@ function dailyBudgetSeries(key) {
 
 /* --- today's budget gauge card --- */
 function renderDailyCard(card, sim, key) {
-  const { series, today, isCurrent, spendable0, reserved, days } = sim;
-  if (spendable0 <= 0) {
+  const { series, today, isCurrent, spendable0, reserved, days, spread } = sim;
+  const pot = spread ? sim.pot : spendable0;
+  if (pot <= 0) {
     card.innerHTML = `<div class="card-title">Daily budget</div>
       <div class="empty-state" style="padding:26px 10px"><div class="big">🌫️</div>
       <p>Add income (or a rollover) to unlock your daily budget.</p></div>`;
@@ -681,8 +682,6 @@ function renderDailyCard(card, sim, key) {
       </svg>
       <div class="gauge-center"><div class="gauge-big">${big}</div><div class="gauge-small">${small}</div></div>
     </div>`;
-  const [yy, mm] = key.split("-").map(Number);
-
   if (isCurrent) {
     const row = series[today - 1] || { budget: 0, spent: 0, carryIn: 0 };
     const budget = row.budget, spent = row.spent;
@@ -690,7 +689,14 @@ function renderDailyCard(card, sim, key) {
     const left = budget - spent;
     const color = ratio > 1 ? "var(--critical)" : ratio > 0.9 ? "var(--serious)" : ratio > 0.7 ? "var(--warning)" : "var(--accent)";
     const tomorrow = today < days ? series[today] : null;
-    const dateStr = new Date(yy, mm - 1, today).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    const dateStr = prettyLongISO(series[today - 1].dayISO);
+    /* In spread mode nothing arrives from yesterday specifically — the
+       surplus is shared by every earlier day — so the chip reports the
+       per-day gain over the flat baseline instead. */
+    const gain = spread ? budget - pot / days : row.carryIn;
+    const gainLabel = spread
+      ? (gain > 0 ? "＋" + fmt(gain) + "/day from underspending" : "−" + fmt(-gain) + "/day from overspending")
+      : (gain > 0 ? "＋" + fmt(gain) + " rolled in from yesterday 🎁" : "−" + fmt(-gain) + " owed from yesterday");
     card.innerHTML = `
       <div class="card-title">Today's budget</div>
       <div class="card-sub">${dateStr}</div>
@@ -699,28 +705,24 @@ function renderDailyCard(card, sim, key) {
         left >= 0 ? "left today" : "over today")}
       <div class="gauge-sub">spent <b>${fmt(spent)}</b> of <b>${fmt(Math.max(0, budget))}</b> today</div>
       <div class="chip-row">
-        ${Math.abs(row.carryIn) >= 0.5
-          ? `<span class="stat-chip ${row.carryIn > 0 ? "pos" : "neg"}">${row.carryIn > 0
-              ? "＋" + fmt(row.carryIn) + " rolled in from yesterday 🎁"
-              : "−" + fmt(-row.carryIn) + " owed from yesterday"}</span>`
-          : ""}
+        ${Math.abs(gain) >= 0.5 ? `<span class="stat-chip ${gain > 0 ? "pos" : "neg"}">${gainLabel}</span>` : ""}
         ${tomorrow ? `<span class="stat-chip" style="animation-delay:.12s">tomorrow ≈ ${fmt(Math.max(0, tomorrow.budget))} if you stop now</span>` : ""}
       </div>`;
   } else {
     const totalSpent = series.reduce((s, r) => s + r.spent, 0);
-    const ratio = totalSpent / spendable0;
-    const leftover = spendable0 - totalSpent;
+    const ratio = totalSpent / pot;
+    const leftover = pot - totalSpent;
     const color = ratio > 1 ? "var(--critical)" : "var(--good)";
     card.innerHTML = `
       <div class="card-title">Budget performance</div>
       <div class="card-sub">${monthName(key)}</div>
       ${gauge(ratio, color, Math.round(ratio * 100) + "%", "of budget used")}
-      <div class="gauge-sub">spent <b>${fmt(round2(totalSpent))}</b> of <b>${fmt(round2(spendable0))}</b> spendable</div>
+      <div class="gauge-sub">spent <b>${fmt(round2(totalSpent))}</b> of <b>${fmt(round2(pot))}</b> spendable</div>
       <div class="chip-row">
         <span class="stat-chip ${leftover >= 0 ? "pos" : "neg"}">${leftover >= 0
           ? "＋" + fmt(round2(leftover)) + " left unspent"
           : "−" + fmt(round2(-leftover)) + " overspent"}</span>
-        ${reserved > 0 ? `<span class="stat-chip" style="animation-delay:.12s">${fmt0(reserved)} reserved for bills & goals</span>` : ""}
+        ${!spread && reserved > 0 ? `<span class="stat-chip" style="animation-delay:.12s">${fmt0(reserved)} reserved for bills & goals</span>` : ""}
       </div>`;
   }
 }
