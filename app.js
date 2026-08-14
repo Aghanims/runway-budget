@@ -359,6 +359,25 @@ function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
+function isoToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function prettyShortISO(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function prettyLongISO(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+/* Period mode is off until a valid state.pay exists; every caller
+   treats null as "fall back to the month engine". */
+function payPeriodSim() {
+  if (typeof PayPeriod === "undefined" || !PayPeriod.isValid(state.pay)) return null;
+  const today = isoToday();
+  return PayPeriod.periodSeries(state.pay, state.months, PayPeriod.periodIndexFor(state.pay, today), today);
+}
 function prettyDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -462,11 +481,21 @@ function confetti() {
    ============================================================ */
 let currentView = "dashboard";
 
+/* The topbar figure has to agree with whatever the hero is showing, or the
+   two read as contradictory. Both live here so they can't drift apart. */
+function updateMiniLeft() {
+  const psim = payPeriodSim();
+  const left = psim ? psim.left : monthTotals(state.activeMonth).left;
+  $("#mini-left").innerHTML = `Left to spend&ensp;<strong>${fmtSigned(round2(left))}</strong>`;
+  $("#mini-left").title = psim ? "Left to spend this pay period" : "Left to spend this month";
+}
+
 function render() {
   $("#month-label").textContent = monthName(state.activeMonth);
-  const totals = monthTotals(state.activeMonth);
-  $("#mini-left").innerHTML =
-    `Left to spend&ensp;<strong>${fmtSigned(round2(totals.left))}</strong>`;
+  $("#month-label").title = (payPeriodSim() && state.activeMonth !== todayKey())
+    ? "Browsing " + monthName(state.activeMonth) + " · your pay-period figures above stay on today"
+    : "Jump to current month";
+  updateMiniLeft();
 
   $$(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === currentView));
   const view = $("#view");
@@ -487,6 +516,7 @@ function renderDashboard(view) {
   const dayNow = sim.today;
   const daysLeft = isCurrent ? days - dayNow + 1 : 0;
   const todayBudget = sim.series[dayNow - 1]?.budget ?? 0;
+  const psim = payPeriodSim();
 
   const kpis = ["income", "expense", "bill", "saving", "debt"].map((type, i) => {
     const { planned, actual } = t[type];
@@ -516,32 +546,48 @@ function renderDashboard(view) {
           <div class="hero-veil"></div>
         </div>
         <div class="hero-left">
-          <div class="eyebrow">Left to spend · ${monthName(key)}</div>
-          <div class="hero-num ${t.left < 0 ? "neg" : ""}" id="hero-num">${fmtSigned(round2(t.left))}</div>
+          <div class="eyebrow">Left to spend · ${psim
+            ? `${prettyShortISO(psim.startISO)} – ${prettyShortISO(psim.endISO)}`
+            : monthName(key)}</div>
+          <div class="hero-num ${(psim ? psim.left : t.left) < 0 ? "neg" : ""}" id="hero-num">${fmtSigned(round2(psim ? psim.left : t.left))}</div>
           <div class="hero-caption">
-            ${t.rollover ? `includes ${fmt(t.rollover)} rolled over · ` : ""}
-            <span class="${deltaVsPlan >= 0 ? "delta-good" : "delta-bad"}">
-              ${deltaVsPlan >= 0 ? "▲ " + fmt0(deltaVsPlan) + " ahead of plan" : "▼ " + fmt0(-deltaVsPlan) + " behind plan"}
-            </span>
+            ${psim
+              ? `${psim.rolloverIn > 0
+                  ? `includes ${fmt(round2(psim.rolloverIn))} rolled over from last period · `
+                  : psim.rolloverIn < 0
+                    ? `starts ${fmt(round2(psim.rolloverIn))} short from last period · `
+                    : ""}${psim.usedExpected ? `<span class="delta-bad">estimated — paycheck not logged yet</span>` : `${psim.days}-day pay cycle`}`
+              : `${t.rollover ? `includes ${fmt(t.rollover)} rolled over · ` : ""}
+                 <span class="${deltaVsPlan >= 0 ? "delta-good" : "delta-bad"}">
+                   ${deltaVsPlan >= 0 ? "▲ " + fmt0(deltaVsPlan) + " ahead of plan" : "▼ " + fmt0(-deltaVsPlan) + " behind plan"}
+                 </span>`}
           </div>
         </div>
         <div class="hero-days">
-          ${isCurrent
-            ? `<strong>${fmt(Math.max(0, todayBudget))}</strong>today's budget · ${daysLeft} day${daysLeft === 1 ? "" : "s"} of runway`
-            : `<strong>${fmt(round2(t.spentActual))}</strong>spent this month`}
+          ${psim
+            ? `<strong>${fmt(Math.max(0, psim.series[Math.max(0, psim.todayIdx)].budget))}</strong>today's budget · ${psim.days - psim.todayIdx} day${psim.days - psim.todayIdx === 1 ? "" : "s"} to payday`
+            : isCurrent
+              ? `<strong>${fmt(Math.max(0, todayBudget))}</strong>today's budget · ${daysLeft} day${daysLeft === 1 ? "" : "s"} of runway`
+              : `<strong>${fmt(round2(t.spentActual))}</strong>spent this month`}
         </div>
       </div>
-      <div class="month-meter" title="Day ${dayNow} of ${days}">
-        <div class="fill" data-w="${(dayNow / days) * 100}"></div>
+      <div class="month-meter" title="${psim ? `Day ${psim.today} of ${psim.days}` : `Day ${dayNow} of ${days}`}">
+        <div class="fill" data-w="${psim ? (psim.today / psim.days) * 100 : (dayNow / days) * 100}"></div>
         <div class="centerline"></div>
-        <div class="plane" data-x="${(dayNow / days) * 100}">✈️</div>
+        <div class="plane" data-x="${psim ? (psim.today / psim.days) * 100 : (dayNow / days) * 100}">✈️</div>
       </div>
+      ${psim
+        ? ""
+        : state.pay
+          ? `<button class="pay-prompt" id="pay-prompt">🗓 Your pay schedule looks invalid — set it again to restore your daily budget.</button>`
+          : `<button class="pay-prompt" id="pay-prompt">🗓 Paid biweekly? Set your pay schedule to get a daily budget that matches your paycheck.</button>`}
 
+      ${psim ? `<div class="section-label">This pay period · ${prettyShortISO(psim.startISO)} – ${prettyShortISO(psim.endISO)}</div>` : ""}
       <div class="dash-grid daily-grid">
         <div class="card daily-card" id="daily-card"></div>
         <div class="card chart-card">
           <div class="card-title">Daily budget flow</div>
-          <div class="card-sub">Underspend rolls into tomorrow · overspend borrows from it</div>
+          <div class="card-sub">${psim ? "Underspend spreads evenly across the days left" : "Underspend rolls into tomorrow · overspend borrows from it"}</div>
           <div class="chart-wrap" id="daily-flow"></div>
           <div class="legend">
             <span class="legend-item"><span class="legend-swatch" style="background:var(--c-expense)"></span>Spent</span>
@@ -551,6 +597,7 @@ function renderDashboard(view) {
         </div>
       </div>
 
+      <div class="section-label">This month · ${monthName(key)}</div>
       <div class="kpi-row">${kpis}</div>
 
       <div class="dash-grid">
@@ -577,7 +624,7 @@ function renderDashboard(view) {
       </div>
     </div>`;
 
-  countUp($("#hero-num"), round2(t.left));
+  countUp($("#hero-num"), round2(psim ? psim.left : t.left));
   ["income", "expense", "bill", "saving", "debt"].forEach((type) => {
     countUp($(`[data-kpi="${type}"]`), round2(t[type].actual), (n) => fmt(n));
   });
@@ -586,10 +633,12 @@ function renderDashboard(view) {
     $$("[data-w]", view).forEach((el) => (el.style.width = el.dataset.w + "%"));
     $$("[data-x]", view).forEach((el) => (el.style.left = el.dataset.x + "%"));
     $$(".gauge-fill", view).forEach((el) => (el.style.strokeDashoffset = el.dataset.off));
+    const prompt = $("#pay-prompt", view);
+    if (prompt) prompt.addEventListener("click", openPayModal);
   });
 
-  renderDailyCard($("#daily-card"), sim, key);
-  drawDailyFlow($("#daily-flow"), sim, key);
+  renderDailyCard($("#daily-card"), psim || sim, key);
+  drawDailyFlow($("#daily-flow"), psim || sim);
   drawPaceChart($("#pace-chart"), key);
   drawTopBars($("#top-bars"), key);
   drawAllocation(t);
@@ -627,7 +676,8 @@ function dailyBudgetSeries(key) {
     const base = (remaining - carry) / daysLeft;
     const budget = base + carry;
     const spent = spentByDay[d];
-    series.push({ d, budget, spent, carryIn: carry });
+    const dayISO = `${key}-${String(d).padStart(2, "0")}`;
+    series.push({ d, dayISO, budget, spent, carryIn: carry });
     if (d <= today) { carry = budget - spent; remaining -= spent; }
     else { carry = 0; remaining -= budget; } // future: assume on-budget
   }
@@ -636,8 +686,9 @@ function dailyBudgetSeries(key) {
 
 /* --- today's budget gauge card --- */
 function renderDailyCard(card, sim, key) {
-  const { series, today, isCurrent, spendable0, reserved, days } = sim;
-  if (spendable0 <= 0) {
+  const { series, today, isCurrent, spendable0, reserved, days, spread } = sim;
+  const pot = spread ? sim.pot : spendable0;
+  if (pot <= 0) {
     card.innerHTML = `<div class="card-title">Daily budget</div>
       <div class="empty-state" style="padding:26px 10px"><div class="big">🌫️</div>
       <p>Add income (or a rollover) to unlock your daily budget.</p></div>`;
@@ -654,8 +705,6 @@ function renderDailyCard(card, sim, key) {
       </svg>
       <div class="gauge-center"><div class="gauge-big">${big}</div><div class="gauge-small">${small}</div></div>
     </div>`;
-  const [yy, mm] = key.split("-").map(Number);
-
   if (isCurrent) {
     const row = series[today - 1] || { budget: 0, spent: 0, carryIn: 0 };
     const budget = row.budget, spent = row.spent;
@@ -663,7 +712,14 @@ function renderDailyCard(card, sim, key) {
     const left = budget - spent;
     const color = ratio > 1 ? "var(--critical)" : ratio > 0.9 ? "var(--serious)" : ratio > 0.7 ? "var(--warning)" : "var(--accent)";
     const tomorrow = today < days ? series[today] : null;
-    const dateStr = new Date(yy, mm - 1, today).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+    const dateStr = prettyLongISO(series[today - 1].dayISO);
+    /* In spread mode nothing arrives from yesterday specifically — the
+       surplus is shared by every earlier day — so the chip reports the
+       per-day gain over the flat baseline instead. */
+    const gain = spread ? budget - pot / days : row.carryIn;
+    const gainLabel = spread
+      ? (gain > 0 ? "＋" + fmt(gain) + "/day from underspending" : "−" + fmt(-gain) + "/day from overspending")
+      : (gain > 0 ? "＋" + fmt(gain) + " rolled in from yesterday 🎁" : "−" + fmt(-gain) + " owed from yesterday");
     card.innerHTML = `
       <div class="card-title">Today's budget</div>
       <div class="card-sub">${dateStr}</div>
@@ -672,34 +728,30 @@ function renderDailyCard(card, sim, key) {
         left >= 0 ? "left today" : "over today")}
       <div class="gauge-sub">spent <b>${fmt(spent)}</b> of <b>${fmt(Math.max(0, budget))}</b> today</div>
       <div class="chip-row">
-        ${Math.abs(row.carryIn) >= 0.5
-          ? `<span class="stat-chip ${row.carryIn > 0 ? "pos" : "neg"}">${row.carryIn > 0
-              ? "＋" + fmt(row.carryIn) + " rolled in from yesterday 🎁"
-              : "−" + fmt(-row.carryIn) + " owed from yesterday"}</span>`
-          : ""}
+        ${Math.abs(gain) >= 0.5 ? `<span class="stat-chip ${gain > 0 ? "pos" : "neg"}">${gainLabel}</span>` : ""}
         ${tomorrow ? `<span class="stat-chip" style="animation-delay:.12s">tomorrow ≈ ${fmt(Math.max(0, tomorrow.budget))} if you stop now</span>` : ""}
       </div>`;
   } else {
     const totalSpent = series.reduce((s, r) => s + r.spent, 0);
-    const ratio = totalSpent / spendable0;
-    const leftover = spendable0 - totalSpent;
+    const ratio = totalSpent / pot;
+    const leftover = pot - totalSpent;
     const color = ratio > 1 ? "var(--critical)" : "var(--good)";
     card.innerHTML = `
       <div class="card-title">Budget performance</div>
       <div class="card-sub">${monthName(key)}</div>
       ${gauge(ratio, color, Math.round(ratio * 100) + "%", "of budget used")}
-      <div class="gauge-sub">spent <b>${fmt(round2(totalSpent))}</b> of <b>${fmt(round2(spendable0))}</b> spendable</div>
+      <div class="gauge-sub">spent <b>${fmt(round2(totalSpent))}</b> of <b>${fmt(round2(pot))}</b> spendable</div>
       <div class="chip-row">
         <span class="stat-chip ${leftover >= 0 ? "pos" : "neg"}">${leftover >= 0
           ? "＋" + fmt(round2(leftover)) + " left unspent"
           : "−" + fmt(round2(-leftover)) + " overspent"}</span>
-        ${reserved > 0 ? `<span class="stat-chip" style="animation-delay:.12s">${fmt0(reserved)} reserved for bills & goals</span>` : ""}
+        ${!spread && reserved > 0 ? `<span class="stat-chip" style="animation-delay:.12s">${fmt0(reserved)} reserved for bills & goals</span>` : ""}
       </div>`;
   }
 }
 
 /* --- daily budget flow chart (bars vs adaptive budget ticks) --- */
-function drawDailyFlow(wrap, sim, key) {
+function drawDailyFlow(wrap, sim) {
   const { series, today, isCurrent, days } = sim;
   const W = 640, H = 210, L = 48, R = 10, T = 12, B = 26;
   const iw = W - L - R, ih = H - T - B;
@@ -721,7 +773,8 @@ function drawDailyFlow(wrap, sim, key) {
   for (let v = 0; v <= nice + 0.01; v += step)
     grid += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/>
       <text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--ink-3)" style="font-variant-numeric:tabular-nums">${v >= 1000 ? v / 1000 + "K" : Math.round(v)}</text>`;
-  const xt = [1, 8, 15, 22, days].filter((v, i, a) => a.indexOf(v) === i)
+  const tickDays = days <= 16 ? [1, 4, 8, 12, days] : [1, 8, 15, 22, days];
+  const xt = tickDays.filter((v, i, a) => a.indexOf(v) === i && v <= days)
     .map((d) => `<text x="${x(d)}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">${d}</text>`).join("");
 
   let bars = "", ticks = "", hits = "";
@@ -746,19 +799,23 @@ function drawDailyFlow(wrap, sim, key) {
     <div class="chart-tip" id="flow-tip"></div>`;
 
   const tip = $("#flow-tip", wrap);
-  const [yy, mm] = key.split("-").map(Number);
+  const spread = !!sim.spread;
   $$("rect[data-day]", wrap).forEach((hr) => {
     hr.addEventListener("mousemove", () => {
       const d = Number(hr.dataset.day);
       const r = series[d - 1];
       const carryOut = r.budget - r.spent;
-      const dateStr = new Date(yy, mm - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      tip.innerHTML = `<div class="tip-date">${dateStr}</div>
+      const daysLeftAfter = days - d;
+      tip.innerHTML = `<div class="tip-date">${prettyShortISO(r.dayISO)}</div>
         <div class="tip-row">budget ${fmt(Math.max(0, r.budget))}</div>
         ${d <= lastBar
           ? `<div class="tip-row">spent ${fmt(r.spent)}</div>
              <div class="tip-row" style="color:${carryOut >= 0 ? "var(--good-ink)" : "var(--critical)"}">
-               ${carryOut >= 0 ? "＋" + fmt(carryOut) + " rolls forward" : "−" + fmt(-carryOut) + " borrowed from tomorrow"}</div>`
+               ${spread
+                 ? (daysLeftAfter > 0
+                     ? (carryOut >= 0 ? "＋" : "−") + fmt(Math.abs(carryOut) / daysLeftAfter) + "/day across " + daysLeftAfter + " days left"
+                     : (carryOut >= 0 ? "＋" + fmt(carryOut) + " left over" : "−" + fmt(-carryOut) + " overspent"))
+                 : (carryOut >= 0 ? "＋" + fmt(carryOut) + " rolls forward" : "−" + fmt(-carryOut) + " borrowed from tomorrow")}</div>`
           : `<div class="tip-row">projected</div>`}`;
       tip.style.left = ((x(d) / W) * 100) + "%";
       tip.style.top = ((y(Math.max(r.budget, r.spent)) / H) * 100) + "%";
@@ -1037,8 +1094,7 @@ function renderBills(view) {
       bill.paid = !bill.paid;
       if (bill.paid && !bill.actual) bill.actual = bill.planned; // sensible default
       save(); renderBills(view);
-      const totals = monthTotals(state.activeMonth);
-      $("#mini-left").innerHTML = `Left to spend&ensp;<strong>${fmtSigned(round2(totals.left))}</strong>`;
+      updateMiniLeft();
       toast(bill.paid ? `${bill.name} marked paid ✓` : `${bill.name} marked unpaid`);
     }));
 }
@@ -1291,6 +1347,69 @@ function openGoalModal() {
   setTimeout(() => $("#g-name").focus(), 60);
 }
 
+/* ---------- pay schedule ---------- */
+function openPayModal() {
+  const root = $("#modal-root");
+  const pay = state.pay || {};
+  root.innerHTML = `
+    <div class="modal-backdrop" id="backdrop">
+      <div class="modal">
+        <h2>Pay schedule</h2>
+        <div class="import-help">
+          Your daily budget is your remaining money divided by the days left
+          until your next paycheck. Underspend on any day and the surplus
+          spreads evenly across every day that's left.
+        </div>
+        <div class="form-grid">
+          <div class="form-field">
+            <label>Next payday</label>
+            <input id="p-anchor" type="date" value="${esc(pay.anchor || "")}">
+          </div>
+          <div class="form-field">
+            <label>Cycle</label>
+            <select id="p-cycle">
+              <option value="7"${pay.cycleDays === 7 ? " selected" : ""}>Every 7 days</option>
+              <option value="14"${(pay.cycleDays ?? 14) === 14 ? " selected" : ""}>Every 14 days</option>
+              <option value="28"${pay.cycleDays === 28 ? " selected" : ""}>Every 28 days</option>
+            </select>
+          </div>
+          <div class="form-field full">
+            <label>Expected paycheck ($) — optional</label>
+            <input id="p-expected" type="number" min="0" step="0.01" placeholder="1500"
+              value="${pay.expected ? esc(pay.expected) : ""}">
+          </div>
+        </div>
+        <div class="modal-actions">
+          ${state.pay ? `<button class="text-btn" id="m-off">Turn off</button>` : ""}
+          <button class="text-btn" id="m-cancel">Cancel</button>
+          <button class="primary-btn" id="m-save">Save schedule</button>
+        </div>
+      </div>
+    </div>`;
+
+  const close = () => (root.innerHTML = "");
+  $("#m-cancel").addEventListener("click", close);
+  $("#backdrop").addEventListener("click", (e) => { if (e.target.id === "backdrop") close(); });
+
+  if (state.pay) {
+    $("#m-off").addEventListener("click", () => {
+      delete state.pay;
+      save(); close(); render(); toast("Pay schedule off — back to monthly budgeting");
+    });
+  }
+
+  $("#m-save").addEventListener("click", () => {
+    const anchor = $("#p-anchor").value;
+    const cycleDays = Number($("#p-cycle").value);
+    if (!PayPeriod.isValid({ anchor })) { toast("Pick your next payday first"); return; }
+    if (!(cycleDays >= 1 && cycleDays <= 60)) { toast("Cycle must be between 1 and 60 days"); return; }
+    state.pay = { anchor, cycleDays, expected: parseFloat($("#p-expected").value) || 0 };
+    save(); close(); render(); toast(`Pay schedule set — every ${cycleDays} days`);
+  });
+
+  setTimeout(() => $("#p-anchor").focus(), 60);
+}
+
 /* ---------- bulk import (bank statement paste) ---------- */
 const IMPORT_TEMPLATE = `# One entry per line: type|date|name|planned|actual|paid(bills only)
 # type is one of: income, expense, bill, saving, debt
@@ -1440,6 +1559,7 @@ $("#month-label").addEventListener("click", () => {
 });
 $("#add-entry").addEventListener("click", () => openEntryModal());
 $("#import-entries").addEventListener("click", () => openImportModal());
+$("#pay-schedule").addEventListener("click", openPayModal);
 
 $("#reset-demo").addEventListener("click", () => {
   if (confirm("Replace everything with the April 2025 sample data?")) {

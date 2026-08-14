@@ -885,3 +885,29 @@ select:focus-visible {
 /* scrollbar */
 .view::-webkit-scrollbar { width: 10px; }
 .view::-webkit-scrollbar-thumb { background: var(--grid); border-radius: 5px; border: 2px solid var(--page); }
+
+/* Separates the pay-period hero above from the month-scoped cards below. */
+.section-label {
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 26px 0 -6px;
+}
+
+.pay-prompt {
+  display: block;
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  color: var(--ink-2);
+  background: var(--glass-bg-strong);
+  border: 1px dashed var(--grid);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color .18s, color .18s;
+}
+.pay-prompt:hover { border-color: var(--accent); color: var(--ink); }
