@@ -176,19 +176,12 @@
         if (earlyPaycheck) usedExpected = false;
       }
       const income = usedExpected ? expected : logged;
-      const outflow = outflowIn(entries);
-      /* When the paycheck arrived early, this period has no income event of
-         its own — it behaves like the pass-through periods in the chain, so
-         its own outflow is netted immediately into `pot` rather than left
-         for the caller to subtract later. `rawPot` keeps the un-netted total
-         (rolloverIn + income) alongside it: periodSeries still needs that
-         true total to compute `left` and the daily series, since its own
-         spend-to-date walk (via entriesInRange) will independently subtract
-         this same outflow — netting it into `pot` too would double-count it. */
-      const rawPot = rolloverIn + income;
-      const pot = earlyPaycheck ? rawPot - outflow : rawPot;
-      store[i] = { index: i, income, rolloverIn, pot, rawPot, usedExpected };
-      rolloverIn = earlyPaycheck ? pot : pot - outflow;
+      /* `pot` is always rolloverIn + income — the money the period starts
+         with, before anything is spent. Spending is subtracted by the
+         caller (see periodSeries's `left`) and by the chain below. */
+      const pot = rolloverIn + income;
+      store[i] = { index: i, income, rolloverIn, pot, usedExpected };
+      rolloverIn = pot - outflowIn(entries);
     }
 
     /* Future periods: one hop off the current period's real leftover,
@@ -196,7 +189,7 @@
     for (let i = stop + 1; i <= index; i++) {
       const carry = i === stop + 1 ? rolloverIn : 0;
       store[i] = {
-        index: i, income: expected, rolloverIn: carry, rawPot: carry + expected,
+        index: i, income: expected, rolloverIn: carry,
         pot: carry + expected, usedExpected: expected > 0,
       };
     }
@@ -229,13 +222,8 @@
     /* budget = remaining / daysLeft. On a day already lived, the real
        spend comes off; on a projected day the budget itself comes off,
        which leaves every later day at the same figure. */
-    /* Walk off rawPot (the un-netted rolloverIn + income), not the exposed
-       `pot`: when an early paycheck has already netted this period's
-       outflow into `pot` (see periodPot), this same-period spend is about
-       to be subtracted again below via `spent[]`/spentSoFar — walking off
-       rawPot keeps that a single subtraction instead of two. */
     const series = [];
-    let remaining = potInfo.rawPot;
+    let remaining = potInfo.pot;
     for (let i = 0; i < days; i++) {
       const budget = remaining / (days - i);
       series.push({ d: i + 1, dayISO: addDays(r.startISO, i), budget, spent: spent[i] });
@@ -249,7 +237,7 @@
       series, todayIdx, today: todayIdx + 1, days,
       pot: potInfo.pot, rolloverIn: potInfo.rolloverIn,
       income: potInfo.income, usedExpected: potInfo.usedExpected,
-      spentSoFar, left: potInfo.rawPot - spentSoFar,
+      spentSoFar, left: potInfo.pot - spentSoFar,
       isCurrent: index === currentIndex,
       startISO: r.startISO, endISO: r.endISO, index,
       spread: true,

@@ -327,8 +327,24 @@ test("an early-posting paycheck suppresses the expected fallback", () => {
   ] } };
   const s = P.periodSeries(pay, months, P.periodIndexFor(pay, "2026-08-15"), "2026-08-15");
   assert.strictEqual(s.usedExpected, false, "the check arrived, just a day early");
-  assert.strictEqual(s.income, 0);
-  assert.strictEqual(s.pot, 2940, "3000 received minus 60 spent");
+  assert.strictEqual(s.income, 0, "no estimate is added on top");
+  assert.strictEqual(s.pot, 3000, "pot is what the period starts with, before spending");
+  assert.strictEqual(s.left, 2940, "3000 received minus 60 spent");
+});
+
+test("pot always equals rolloverIn + income", () => {
+  const pay = { anchor: "2026-08-14", cycleDays: 14, expected: 1500 };
+  const cases = [
+    { "2026-07": { entries: [] }, "2026-08": { entries: [
+      E("income", "2026-07-31", 1500), E("income", "2026-08-13", 1500), E("expense", "2026-08-15", 60)] } },
+    { "2026-08": { entries: [E("income", "2026-08-14", 1200), E("bill", "2026-08-16", 400)] } },
+    { "2026-08": { entries: [] } },
+  ];
+  for (const months of cases) {
+    const s = P.periodSeries(pay, months, P.periodIndexFor(pay, "2026-08-15"), "2026-08-15");
+    assert.strictEqual(s.pot, s.rolloverIn + s.income, "pot must not net spending");
+    assert.strictEqual(s.left, s.pot - s.spentSoFar, "left is pot minus spend to date");
+  }
 });
 
 test("an on-time previous paycheck still leaves this period's estimate intact", () => {
