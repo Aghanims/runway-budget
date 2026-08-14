@@ -183,12 +183,9 @@
       if (i >= 0 && i < days) spent[i] += e.actual || 0;
     }
 
-    const totalOutflow = outflowIn(entries);
     const currentIndex = periodIndexFor(pay, todayISO);
     let todayIdx;
-    if (totalOutflow === 0) {
-      todayIdx = -1;
-    } else if (index === currentIndex) {
+    if (index === currentIndex) {
       todayIdx = daysBetween(r.startISO, todayISO);
     } else if (index < currentIndex) {
       todayIdx = days - 1;

@@ -218,10 +218,21 @@ test("spec scenario: days 2 through 14 are all equal", () => {
   for (let i = 2; i < 14; i++) near(s.series[i].budget, s.series[1].budget, "day " + (i + 1));
 });
 
-test("zero spend leaves every day at pot/14", () => {
+test("with nothing spent today, tomorrow absorbs today's whole allowance", () => {
   const months = { "2026-08": { entries: [E("income", "2026-08-13", 1500)] } };
   const s = P.periodSeries(PAY, months, 0, "2026-08-13");
-  for (let i = 0; i < 14; i++) near(s.series[i].budget, 107.142857, "day " + (i + 1));
+  near(s.series[0].budget, 107.142857, "day 1 is the flat share");
+  near(s.series[1].budget, 115.384615, "day 2 absorbs the unspent day 1");
+  for (let i = 2; i < 14; i++) near(s.series[i].budget, 115.384615, "day " + (i + 1));
+  assert.strictEqual(s.todayIdx, 0, "today is day 1, not -1");
+  assert.strictEqual(s.today, 1);
+});
+
+test("a period with no spending still reports a usable today index", () => {
+  const months = { "2026-08": { entries: [E("income", "2026-08-13", 1500)] } };
+  const s = P.periodSeries(PAY, months, 0, "2026-08-16");
+  assert.ok(s.today >= 1, "today must be 1-based and >= 1, got " + s.today);
+  assert.ok(s.series[s.today - 1], "series[today - 1] must exist for the gauge card");
 });
 
 test("overspending spreads the deficit", () => {
