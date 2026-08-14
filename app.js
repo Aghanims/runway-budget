@@ -562,6 +562,7 @@ function renderDashboard(view) {
         <div class="centerline"></div>
         <div class="plane" data-x="${psim ? (psim.today / psim.days) * 100 : (dayNow / days) * 100}">✈️</div>
       </div>
+      ${psim ? "" : `<button class="pay-prompt" id="pay-prompt">🗓 Paid biweekly? Set your pay schedule to get a daily budget that matches your paycheck.</button>`}
 
       <div class="dash-grid daily-grid">
         <div class="card daily-card" id="daily-card"></div>
@@ -613,6 +614,8 @@ function renderDashboard(view) {
     $$("[data-w]", view).forEach((el) => (el.style.width = el.dataset.w + "%"));
     $$("[data-x]", view).forEach((el) => (el.style.left = el.dataset.x + "%"));
     $$(".gauge-fill", view).forEach((el) => (el.style.strokeDashoffset = el.dataset.off));
+    const prompt = $("#pay-prompt", view);
+    if (prompt) prompt.addEventListener("click", openPayModal);
   });
 
   renderDailyCard($("#daily-card"), psim || sim, key);
@@ -1326,6 +1329,69 @@ function openGoalModal() {
   setTimeout(() => $("#g-name").focus(), 60);
 }
 
+/* ---------- pay schedule ---------- */
+function openPayModal() {
+  const root = $("#modal-root");
+  const pay = state.pay || {};
+  root.innerHTML = `
+    <div class="modal-backdrop" id="backdrop">
+      <div class="modal">
+        <h2>Pay schedule</h2>
+        <div class="import-help">
+          Your daily budget is your remaining money divided by the days left
+          until your next paycheck. Underspend on any day and the surplus
+          spreads evenly across every day that's left.
+        </div>
+        <div class="form-grid">
+          <div class="form-field">
+            <label>Next payday</label>
+            <input id="p-anchor" type="date" value="${esc(pay.anchor || "")}">
+          </div>
+          <div class="form-field">
+            <label>Cycle</label>
+            <select id="p-cycle">
+              <option value="7"${pay.cycleDays === 7 ? " selected" : ""}>Every 7 days</option>
+              <option value="14"${(pay.cycleDays ?? 14) === 14 ? " selected" : ""}>Every 14 days</option>
+              <option value="28"${pay.cycleDays === 28 ? " selected" : ""}>Every 28 days</option>
+            </select>
+          </div>
+          <div class="form-field full">
+            <label>Expected paycheck ($) — optional</label>
+            <input id="p-expected" type="number" min="0" step="0.01" placeholder="1500"
+              value="${pay.expected ? esc(pay.expected) : ""}">
+          </div>
+        </div>
+        <div class="modal-actions">
+          ${state.pay ? `<button class="text-btn" id="m-off">Turn off</button>` : ""}
+          <button class="text-btn" id="m-cancel">Cancel</button>
+          <button class="primary-btn" id="m-save">Save schedule</button>
+        </div>
+      </div>
+    </div>`;
+
+  const close = () => (root.innerHTML = "");
+  $("#m-cancel").addEventListener("click", close);
+  $("#backdrop").addEventListener("click", (e) => { if (e.target.id === "backdrop") close(); });
+
+  if (state.pay) {
+    $("#m-off").addEventListener("click", () => {
+      delete state.pay;
+      save(); close(); render(); toast("Pay schedule off — back to monthly budgeting");
+    });
+  }
+
+  $("#m-save").addEventListener("click", () => {
+    const anchor = $("#p-anchor").value;
+    const cycleDays = Number($("#p-cycle").value);
+    if (!PayPeriod.isValid({ anchor })) { toast("Pick your next payday first"); return; }
+    if (!(cycleDays >= 1 && cycleDays <= 60)) { toast("Cycle must be between 1 and 60 days"); return; }
+    state.pay = { anchor, cycleDays, expected: parseFloat($("#p-expected").value) || 0 };
+    save(); close(); render(); toast(`Pay schedule set — every ${cycleDays} days`);
+  });
+
+  setTimeout(() => $("#p-anchor").focus(), 60);
+}
+
 /* ---------- bulk import (bank statement paste) ---------- */
 const IMPORT_TEMPLATE = `# One entry per line: type|date|name|planned|actual|paid(bills only)
 # type is one of: income, expense, bill, saving, debt
@@ -1475,6 +1541,7 @@ $("#month-label").addEventListener("click", () => {
 });
 $("#add-entry").addEventListener("click", () => openEntryModal());
 $("#import-entries").addEventListener("click", () => openImportModal());
+$("#pay-schedule").addEventListener("click", openPayModal);
 
 $("#reset-demo").addEventListener("click", () => {
   if (confirm("Replace everything with the April 2025 sample data?")) {
