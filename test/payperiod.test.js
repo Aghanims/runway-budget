@@ -41,6 +41,13 @@ test("isValid rejects missing and malformed anchors", () => {
   assert.strictEqual(P.isValid({ anchor: "2026-08-13" }), true);
 });
 
+test("isValid rejects calendar-impossible dates", () => {
+  assert.strictEqual(P.isValid({ anchor: "2026-02-30" }), false);
+  assert.strictEqual(P.isValid({ anchor: "9999-99-99" }), false);
+  assert.strictEqual(P.isValid({ anchor: "2026-02-28" }), true);
+  assert.strictEqual(P.isValid({ anchor: "2024-02-29" }), true, "2024 is a leap year");
+});
+
 test("periodIndexFor returns 0 on the anchor and inside period 0", () => {
   assert.strictEqual(P.periodIndexFor(PAY, "2026-08-13"), 0);
   assert.strictEqual(P.periodIndexFor(PAY, "2026-08-26"), 0);
@@ -205,6 +212,29 @@ test("periodPot treats a logged $0 income entry as real, not missing", () => {
   const pot = P.periodPot(pay, months, 0, {}, "2026-08-13");
   assert.strictEqual(pot.pot, 0, "a logged $0 paycheck must not fall back to expected");
   assert.strictEqual(pot.usedExpected, false);
+});
+
+test("idle historical periods do not mint phantom paychecks", () => {
+  const pay = { anchor: "2026-08-14", cycleDays: 14, expected: 1500 };
+  const months = {
+    "2026-05": { entries: [
+      E("income", "2026-05-08", 1500), E("expense", "2026-05-09", 60),
+    ] },
+    "2026-08": { entries: [
+      E("income", "2026-08-14", 1500), E("expense", "2026-08-15", 60),
+    ] },
+  };
+  const s = P.periodSeries(pay, months, P.periodIndexFor(pay, "2026-08-15"), "2026-08-15");
+  assert.strictEqual(s.rolloverIn, 1440, "only May's real leftover carries");
+  assert.strictEqual(s.pot, 2940, "1440 carried + 1500 actually logged");
+});
+
+test("the expected fallback still funds the current period before payday", () => {
+  const pay = { anchor: "2026-08-14", cycleDays: 14, expected: 1500 };
+  const months = { "2026-08": { entries: [] } };
+  const s = P.periodSeries(pay, months, P.periodIndexFor(pay, "2026-08-15"), "2026-08-15");
+  assert.strictEqual(s.pot, 1500);
+  assert.strictEqual(s.usedExpected, true);
 });
 
 test("spec scenario: day 1 is pot/14, day 2 is remaining/13", () => {

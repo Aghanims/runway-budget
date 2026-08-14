@@ -484,8 +484,15 @@ let currentView = "dashboard";
 function render() {
   $("#month-label").textContent = monthName(state.activeMonth);
   const totals = monthTotals(state.activeMonth);
-  $("#mini-left").innerHTML =
-    `Left to spend&ensp;<strong>${fmtSigned(round2(totals.left))}</strong>`;
+  const miniPsim = payPeriodSim();
+  if (miniPsim) {
+    $("#mini-left").innerHTML =
+      `Left to spend&ensp;<strong>${fmtSigned(round2(miniPsim.left))}</strong>`;
+    $("#mini-left").title = "Left to spend this pay period";
+  } else {
+    $("#mini-left").innerHTML =
+      `Left to spend&ensp;<strong>${fmtSigned(round2(totals.left))}</strong>`;
+  }
 
   $$(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === currentView));
   const view = $("#view");
@@ -542,7 +549,11 @@ function renderDashboard(view) {
           <div class="hero-num ${(psim ? psim.left : t.left) < 0 ? "neg" : ""}" id="hero-num">${fmtSigned(round2(psim ? psim.left : t.left))}</div>
           <div class="hero-caption">
             ${psim
-              ? `${psim.rolloverIn ? `includes ${fmt(round2(psim.rolloverIn))} rolled over from last period · ` : ""}${psim.usedExpected ? `<span class="delta-bad">estimated — paycheck not logged yet</span>` : `${psim.days}-day pay cycle`}`
+              ? `${psim.rolloverIn > 0
+                  ? `includes ${fmt(round2(psim.rolloverIn))} rolled over from last period · `
+                  : psim.rolloverIn < 0
+                    ? `starts ${fmt(round2(psim.rolloverIn))} short from last period · `
+                    : ""}${psim.usedExpected ? `<span class="delta-bad">estimated — paycheck not logged yet</span>` : `${psim.days}-day pay cycle`}`
               : `${t.rollover ? `includes ${fmt(t.rollover)} rolled over · ` : ""}
                  <span class="${deltaVsPlan >= 0 ? "delta-good" : "delta-bad"}">
                    ${deltaVsPlan >= 0 ? "▲ " + fmt0(deltaVsPlan) + " ahead of plan" : "▼ " + fmt0(-deltaVsPlan) + " behind plan"}
@@ -562,7 +573,11 @@ function renderDashboard(view) {
         <div class="centerline"></div>
         <div class="plane" data-x="${psim ? (psim.today / psim.days) * 100 : (dayNow / days) * 100}">✈️</div>
       </div>
-      ${psim ? "" : `<button class="pay-prompt" id="pay-prompt">🗓 Paid biweekly? Set your pay schedule to get a daily budget that matches your paycheck.</button>`}
+      ${psim
+        ? ""
+        : state.pay
+          ? `<button class="pay-prompt" id="pay-prompt">🗓 Your pay schedule looks invalid — set it again to restore your daily budget.</button>`
+          : `<button class="pay-prompt" id="pay-prompt">🗓 Paid biweekly? Set your pay schedule to get a daily budget that matches your paycheck.</button>`}
 
       <div class="dash-grid daily-grid">
         <div class="card daily-card" id="daily-card"></div>

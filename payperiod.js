@@ -37,7 +37,12 @@
 
   function isValid(pay) {
     if (!pay || typeof pay.anchor !== "string" || !ISO_RE.test(pay.anchor)) return false;
-    return !Number.isNaN(parseISO(pay.anchor).getTime());
+    const d = parseISO(pay.anchor);
+    if (Number.isNaN(d.getTime())) return false;
+    /* parseISO silently rolls over out-of-range values (e.g. Feb 30 -> Mar 2),
+       so a round-trip through toISO is the only way to catch a calendar-
+       impossible date. */
+    return toISO(d) === pay.anchor;
   }
 
   function cycleOf(pay) {
@@ -151,7 +156,11 @@
       const entries = entriesInRange(months, r.startISO, r.endISO);
       const logged = incomeIn(entries);
       const hasIncomeEntry = entries.some((e) => e.type === "income");
-      const usedExpected = !hasIncomeEntry && expected > 0;
+      /* The expected fallback exists solely so the current period doesn't
+         read $0 while the user waits for a paycheck to land. Applying it to
+         every idle historical period would mint a phantom paycheck for each
+         one, so it's scoped to i === stop (the period containing todayISO). */
+      const usedExpected = i === stop && !hasIncomeEntry && expected > 0;
       const income = usedExpected ? expected : logged;
       const pot = rolloverIn + income;
       store[i] = { index: i, income, rolloverIn, pot, usedExpected };
