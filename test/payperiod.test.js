@@ -181,4 +181,30 @@ test("later future periods do not compound unspent projected money", () => {
   assert.strictEqual(far.pot, 1500);
 });
 
+test("periodPot cache invalidates when todayISO changes", () => {
+  const pay = { anchor: "2026-08-13", cycleDays: 14, expected: 1500 };
+  const cache = {};
+  // Today sits in period 0: period 3 is far future, funded by expected alone.
+  const stale = P.periodPot(pay, MONTHS_BASIC, 3, cache, "2026-08-13");
+  assert.strictEqual(stale.pot, 1500);
+
+  // Real income lands in periods 1 and 2, and today advances into period 2.
+  const monthsWithHistory = {
+    "2026-08": { entries: [...MONTHS_BASIC["2026-08"].entries, E("income", "2026-08-27", 1000)] },
+    "2026-09": { entries: [E("income", "2026-09-10", 1000)] },
+  };
+  const reused = P.periodPot(pay, monthsWithHistory, 3, cache, "2026-09-20");
+  const fresh = P.periodPot(pay, monthsWithHistory, 3, {}, "2026-09-20");
+  assert.strictEqual(fresh.pot, 4980, "sanity check on the fresh-cache computation");
+  assert.strictEqual(reused.pot, fresh.pot, "a reused cache must not serve a stale projection");
+});
+
+test("periodPot treats a logged $0 income entry as real, not missing", () => {
+  const pay = { anchor: "2026-08-13", cycleDays: 14, expected: 1500 };
+  const months = { "2026-08": { entries: [E("income", "2026-08-13", 0, 0)] } };
+  const pot = P.periodPot(pay, months, 0, {}, "2026-08-13");
+  assert.strictEqual(pot.pot, 0, "a logged $0 paycheck must not fall back to expected");
+  assert.strictEqual(pot.usedExpected, false);
+});
+
 console.log(`\n${passed} passing`);

@@ -124,6 +124,17 @@
 
   function periodPot(pay, months, index, cache, todayISO) {
     const store = cache || {};
+
+    /* Cache contract: store[i] memoizes period i's pot, but that pot depends
+       on todayISO (it decides which periods are real history vs. projected
+       future). Stamp the resolving todayISO under a non-numeric key and wipe
+       any memoized entries when a caller passes a different one, so a cache
+       object reused across two todayISO values can't hand back a projection
+       that has since become real, spent-against history. */
+    if (store.__todayISO !== todayISO) {
+      for (const key of Object.keys(store)) delete store[key];
+      store.__todayISO = todayISO;
+    }
     if (store[index]) return store[index];
 
     /* Chain only through periods that have actually happened. Past the
@@ -139,7 +150,8 @@
       const r = periodRange(pay, i);
       const entries = entriesInRange(months, r.startISO, r.endISO);
       const logged = incomeIn(entries);
-      const usedExpected = logged === 0 && expected > 0;
+      const hasIncomeEntry = entries.some((e) => e.type === "income");
+      const usedExpected = !hasIncomeEntry && expected > 0;
       const income = usedExpected ? expected : logged;
       const pot = rolloverIn + income;
       store[i] = { index: i, income, rolloverIn, pot, usedExpected };
