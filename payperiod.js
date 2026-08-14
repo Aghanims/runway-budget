@@ -60,9 +60,108 @@
     return periodRange(pay, periodIndexFor(pay, todayISO));
   }
 
+  const OUTFLOW = { expense: true, bill: true, saving: true, debt: true };
+  const ROLLOVER_CAP = 60;
+
+  function monthKeysFor(startISO, endISO) {
+    const keys = [];
+    const end = endISO.slice(0, 7);
+    let y = Number(startISO.slice(0, 4));
+    let m = Number(startISO.slice(5, 7));
+    for (let guard = 0; guard < 24; guard++) {
+      const key = `${y}-${String(m).padStart(2, "0")}`;
+      keys.push(key);
+      if (key === end) break;
+      if (++m > 12) { m = 1; y += 1; }
+    }
+    return keys;
+  }
+
+  /* ISO date strings sort lexicographically, so string compares are
+     safe here and avoid parsing every entry. */
+  function entriesInRange(months, startISO, endISO) {
+    const out = [];
+    if (!months) return out;
+    for (const key of monthKeysFor(startISO, endISO)) {
+      const bucket = months[key];
+      if (!bucket || !bucket.entries) continue;
+      for (const e of bucket.entries) {
+        if (e.date >= startISO && e.date <= endISO) out.push(e);
+      }
+    }
+    return out;
+  }
+
+  function incomeIn(entries) {
+    let sum = 0;
+    for (const e of entries) {
+      if (e.type !== "income") continue;
+      sum += (e.actual || 0) !== 0 ? e.actual : (e.planned || 0);
+    }
+    return sum;
+  }
+
+  function outflowIn(entries) {
+    let sum = 0;
+    for (const e of entries) if (OUTFLOW[e.type]) sum += e.actual || 0;
+    return sum;
+  }
+
+  function periodHasEntries(pay, months, index) {
+    const r = periodRange(pay, index);
+    return entriesInRange(months, r.startISO, r.endISO).length > 0;
+  }
+
+  /* Oldest period worth chaining from: the earliest entry-bearing
+     period within ROLLOVER_CAP, else `index` itself. */
+  function earliestDataIndex(pay, months, index) {
+    let earliest = index;
+    for (let back = 1; back <= ROLLOVER_CAP; back++) {
+      if (periodHasEntries(pay, months, index - back)) earliest = index - back;
+    }
+    return earliest;
+  }
+
+  function periodPot(pay, months, index, cache, todayISO) {
+    const store = cache || {};
+    if (store[index]) return store[index];
+
+    /* Chain only through periods that have actually happened. Past the
+       current period there is no real spending to net off, so carrying
+       a projected pot forward would compound it every cycle. */
+    const currentIndex = todayISO ? periodIndexFor(pay, todayISO) : index;
+    const stop = Math.min(index, currentIndex);
+    const start = Math.min(earliestDataIndex(pay, months, stop), stop);
+    const expected = Number(pay.expected) || 0;
+
+    let rolloverIn = 0;
+    for (let i = start; i <= stop; i++) {
+      const r = periodRange(pay, i);
+      const entries = entriesInRange(months, r.startISO, r.endISO);
+      const logged = incomeIn(entries);
+      const usedExpected = logged === 0 && expected > 0;
+      const income = usedExpected ? expected : logged;
+      const pot = rolloverIn + income;
+      store[i] = { index: i, income, rolloverIn, pot, usedExpected };
+      rolloverIn = pot - outflowIn(entries);
+    }
+
+    /* Future periods: one hop off the current period's real leftover,
+       funded by the expected paycheck. */
+    for (let i = stop + 1; i <= index; i++) {
+      const carry = i === stop + 1 ? rolloverIn : 0;
+      store[i] = {
+        index: i, income: expected, rolloverIn: carry,
+        pot: carry + expected, usedExpected: expected > 0,
+      };
+    }
+    return store[index];
+  }
+
   const PayPeriod = {
     parseISO, toISO, addDays, daysBetween,
     isValid, cycleOf, periodIndexFor, periodRange, currentPeriod,
+    monthKeysFor, entriesInRange, incomeIn, outflowIn, periodPot,
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = PayPeriod;

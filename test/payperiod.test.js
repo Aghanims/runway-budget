@@ -68,4 +68,117 @@ test("currentPeriod resolves the period containing today", () => {
   assert.strictEqual(P.currentPeriod(PAY, "2026-09-01").startISO, "2026-08-27");
 });
 
+/* ---------- fixtures ---------- */
+const E = (type, date, actual, planned) =>
+  ({ id: type + date, type, date, name: type, planned: planned ?? actual, actual });
+
+// $1500 paycheck on the anchor, $20 spent that same day.
+const MONTHS_BASIC = {
+  "2026-08": { rollover: 0, entries: [
+    E("income", "2026-08-13", 1500),
+    E("expense", "2026-08-13", 20),
+  ] },
+};
+
+test("monthKeysFor returns one key inside a single month", () => {
+  assert.deepStrictEqual(P.monthKeysFor("2026-08-13", "2026-08-26"), ["2026-08"]);
+});
+
+test("monthKeysFor spans a month boundary", () => {
+  assert.deepStrictEqual(P.monthKeysFor("2026-08-28", "2026-09-10"), ["2026-08", "2026-09"]);
+});
+
+test("monthKeysFor spans a year boundary", () => {
+  assert.deepStrictEqual(P.monthKeysFor("2026-12-28", "2027-01-10"), ["2026-12", "2027-01"]);
+});
+
+test("entriesInRange collects across both month buckets", () => {
+  const months = {
+    "2026-08": { entries: [E("expense", "2026-08-30", 10), E("expense", "2026-08-01", 99)] },
+    "2026-09": { entries: [E("expense", "2026-09-02", 20)] },
+  };
+  const got = P.entriesInRange(months, "2026-08-28", "2026-09-10");
+  assert.strictEqual(got.length, 2, "the Aug 1 entry is outside the range");
+  assert.strictEqual(P.outflowIn(got), 30);
+});
+
+test("entriesInRange tolerates missing month buckets", () => {
+  assert.deepStrictEqual(P.entriesInRange({}, "2026-08-13", "2026-08-26"), []);
+  assert.deepStrictEqual(P.entriesInRange(null, "2026-08-13", "2026-08-26"), []);
+});
+
+test("incomeIn prefers actual, falls back to planned", () => {
+  assert.strictEqual(P.incomeIn([E("income", "2026-08-13", 0, 500)]), 500);
+  assert.strictEqual(P.incomeIn([E("income", "2026-08-13", 480, 500)]), 480);
+});
+
+test("outflowIn counts expense, bill, saving and debt but not income", () => {
+  const entries = [
+    E("income", "2026-08-13", 1000), E("expense", "2026-08-14", 10),
+    E("bill", "2026-08-15", 100), E("saving", "2026-08-16", 50), E("debt", "2026-08-17", 25),
+  ];
+  assert.strictEqual(P.outflowIn(entries), 185);
+});
+
+test("periodPot uses logged income", () => {
+  const pot = P.periodPot(PAY, MONTHS_BASIC, 0, {}, "2026-08-13");
+  assert.strictEqual(pot.pot, 1500);
+  assert.strictEqual(pot.rolloverIn, 0);
+  assert.strictEqual(pot.usedExpected, false);
+});
+
+test("periodPot falls back to expected when no income is logged", () => {
+  const pay = { anchor: "2026-08-13", cycleDays: 14, expected: 1500 };
+  const pot = P.periodPot(pay, { "2026-08": { entries: [] } }, 0, {}, "2026-08-13");
+  assert.strictEqual(pot.pot, 1500);
+  assert.strictEqual(pot.usedExpected, true);
+});
+
+test("logged income wins over expected once present", () => {
+  const pay = { anchor: "2026-08-13", cycleDays: 14, expected: 1500 };
+  const pot = P.periodPot(pay, { "2026-08": { entries: [E("income", "2026-08-13", 1600)] } }, 0, {}, "2026-08-13");
+  assert.strictEqual(pot.pot, 1600);
+  assert.strictEqual(pot.usedExpected, false);
+});
+
+test("rollover chains across three consecutive periods", () => {
+  // P0: 1000 in, 400 out -> 600 carries. P1: 1000 in + 600 = 1600, 100 out -> 1500 carries.
+  const months = {
+    "2026-08": { entries: [
+      E("income", "2026-08-13", 1000), E("expense", "2026-08-14", 400),
+      E("income", "2026-08-27", 1000), E("expense", "2026-08-28", 100),
+    ] },
+    "2026-09": { entries: [E("income", "2026-09-10", 1000)] },
+  };
+  const cache = {};
+  assert.strictEqual(P.periodPot(PAY, months, 0, cache, "2026-09-20").pot, 1000);
+  assert.strictEqual(P.periodPot(PAY, months, 1, cache, "2026-09-20").pot, 1600);
+  const p2 = P.periodPot(PAY, months, 2, cache, "2026-09-20");
+  assert.strictEqual(p2.rolloverIn, 1500);
+  assert.strictEqual(p2.pot, 2500);
+});
+
+test("rollover chain terminates for a far-past anchor", () => {
+  const pay = { anchor: "2019-01-02", cycleDays: 14, expected: 0 };
+  const pot = P.periodPot(pay, MONTHS_BASIC, 200, {}, "2026-08-13");
+  assert.ok(Number.isFinite(pot.pot), "pot must be finite, got " + pot.pot);
+});
+
+test("the next period carries the current period's real leftover once", () => {
+  const pay = { anchor: "2026-08-13", cycleDays: 14, expected: 1500 };
+  // Today is in period 0: $1500 in, $20 out, so $1480 carries into period 1.
+  const next = P.periodPot(pay, MONTHS_BASIC, 1, {}, "2026-08-13");
+  assert.strictEqual(next.rolloverIn, 1480);
+  assert.strictEqual(next.pot, 1480 + 1500);
+});
+
+test("later future periods do not compound unspent projected money", () => {
+  const pay = { anchor: "2026-08-13", cycleDays: 14, expected: 1500 };
+  // Period 3 is beyond the one-hop carry, so it is funded by the expected
+  // paycheck alone rather than by three cycles of imaginary surplus.
+  const far = P.periodPot(pay, MONTHS_BASIC, 3, {}, "2026-08-13");
+  assert.strictEqual(far.rolloverIn, 0);
+  assert.strictEqual(far.pot, 1500);
+});
+
 console.log(`\n${passed} passing`);
