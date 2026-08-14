@@ -567,7 +567,7 @@ function renderDashboard(view) {
         <div class="card daily-card" id="daily-card"></div>
         <div class="card chart-card">
           <div class="card-title">Daily budget flow</div>
-          <div class="card-sub">Underspend rolls into tomorrow · overspend borrows from it</div>
+          <div class="card-sub">${psim ? "Underspend spreads evenly across the days left" : "Underspend rolls into tomorrow · overspend borrows from it"}</div>
           <div class="chart-wrap" id="daily-flow"></div>
           <div class="legend">
             <span class="legend-item"><span class="legend-swatch" style="background:var(--c-expense)"></span>Spent</span>
@@ -616,7 +616,7 @@ function renderDashboard(view) {
   });
 
   renderDailyCard($("#daily-card"), psim || sim, key);
-  drawDailyFlow($("#daily-flow"), psim || sim, key);
+  drawDailyFlow($("#daily-flow"), psim || sim);
   drawPaceChart($("#pace-chart"), key);
   drawTopBars($("#top-bars"), key);
   drawAllocation(t);
@@ -654,7 +654,8 @@ function dailyBudgetSeries(key) {
     const base = (remaining - carry) / daysLeft;
     const budget = base + carry;
     const spent = spentByDay[d];
-    series.push({ d, budget, spent, carryIn: carry });
+    const dayISO = `${key}-${String(d).padStart(2, "0")}`;
+    series.push({ d, dayISO, budget, spent, carryIn: carry });
     if (d <= today) { carry = budget - spent; remaining -= spent; }
     else { carry = 0; remaining -= budget; } // future: assume on-budget
   }
@@ -728,7 +729,7 @@ function renderDailyCard(card, sim, key) {
 }
 
 /* --- daily budget flow chart (bars vs adaptive budget ticks) --- */
-function drawDailyFlow(wrap, sim, key) {
+function drawDailyFlow(wrap, sim) {
   const { series, today, isCurrent, days } = sim;
   const W = 640, H = 210, L = 48, R = 10, T = 12, B = 26;
   const iw = W - L - R, ih = H - T - B;
@@ -750,7 +751,8 @@ function drawDailyFlow(wrap, sim, key) {
   for (let v = 0; v <= nice + 0.01; v += step)
     grid += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/>
       <text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="10.5" fill="var(--ink-3)" style="font-variant-numeric:tabular-nums">${v >= 1000 ? v / 1000 + "K" : Math.round(v)}</text>`;
-  const xt = [1, 8, 15, 22, days].filter((v, i, a) => a.indexOf(v) === i)
+  const tickDays = days <= 16 ? [1, 4, 8, 12, days] : [1, 8, 15, 22, days];
+  const xt = tickDays.filter((v, i, a) => a.indexOf(v) === i && v <= days)
     .map((d) => `<text x="${x(d)}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">${d}</text>`).join("");
 
   let bars = "", ticks = "", hits = "";
@@ -775,19 +777,23 @@ function drawDailyFlow(wrap, sim, key) {
     <div class="chart-tip" id="flow-tip"></div>`;
 
   const tip = $("#flow-tip", wrap);
-  const [yy, mm] = key.split("-").map(Number);
+  const spread = !!sim.spread;
   $$("rect[data-day]", wrap).forEach((hr) => {
     hr.addEventListener("mousemove", () => {
       const d = Number(hr.dataset.day);
       const r = series[d - 1];
       const carryOut = r.budget - r.spent;
-      const dateStr = new Date(yy, mm - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      tip.innerHTML = `<div class="tip-date">${dateStr}</div>
+      const daysLeftAfter = days - d;
+      tip.innerHTML = `<div class="tip-date">${prettyShortISO(r.dayISO)}</div>
         <div class="tip-row">budget ${fmt(Math.max(0, r.budget))}</div>
         ${d <= lastBar
           ? `<div class="tip-row">spent ${fmt(r.spent)}</div>
              <div class="tip-row" style="color:${carryOut >= 0 ? "var(--good-ink)" : "var(--critical)"}">
-               ${carryOut >= 0 ? "＋" + fmt(carryOut) + " rolls forward" : "−" + fmt(-carryOut) + " borrowed from tomorrow"}</div>`
+               ${spread
+                 ? (daysLeftAfter > 0
+                     ? (carryOut >= 0 ? "＋" : "−") + fmt(Math.abs(carryOut) / daysLeftAfter) + "/day across " + daysLeftAfter + " days left"
+                     : (carryOut >= 0 ? "＋" + fmt(carryOut) + " left over" : "−" + fmt(-carryOut) + " overspent"))
+                 : (carryOut >= 0 ? "＋" + fmt(carryOut) + " rolls forward" : "−" + fmt(-carryOut) + " borrowed from tomorrow")}</div>`
           : `<div class="tip-row">projected</div>`}`;
       tip.style.left = ((x(d) / W) * 100) + "%";
       tip.style.top = ((y(Math.max(r.budget, r.spent)) / H) * 100) + "%";
