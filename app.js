@@ -492,6 +492,9 @@ function updateMiniLeft() {
 
 function render() {
   $("#month-label").textContent = monthName(state.activeMonth);
+  $("#month-label").title = (payPeriodSim() && state.activeMonth !== todayKey())
+    ? "Browsing " + monthName(state.activeMonth) + " · your pay-period figures above stay on today"
+    : "Jump to current month";
   updateMiniLeft();
 
   $$(".nav-btn").forEach((b) => b.classList.toggle("active", b.dataset.view === currentView));
@@ -579,6 +582,7 @@ function renderDashboard(view) {
           ? `<button class="pay-prompt" id="pay-prompt">🗓 Your pay schedule looks invalid — set it again to restore your daily budget.</button>`
           : `<button class="pay-prompt" id="pay-prompt">🗓 Paid biweekly? Set your pay schedule to get a daily budget that matches your paycheck.</button>`}
 
+      ${psim ? `<div class="section-label">This pay period · ${prettyShortISO(psim.startISO)} – ${prettyShortISO(psim.endISO)}</div>` : ""}
       <div class="dash-grid daily-grid">
         <div class="card daily-card" id="daily-card"></div>
         <div class="card chart-card">

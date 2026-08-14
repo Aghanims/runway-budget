@@ -320,6 +320,29 @@ test("series rows carry their own ISO date across a month boundary", () => {
   assert.strictEqual(s.series[0].d, 1);
 });
 
+test("an early-posting paycheck suppresses the expected fallback", () => {
+  const pay = { anchor: "2026-08-14", cycleDays: 14, expected: 1500 };
+  const months = { "2026-07": { entries: [] }, "2026-08": { entries: [
+    E("income", "2026-07-31", 1500), E("income", "2026-08-13", 1500), E("expense", "2026-08-15", 60),
+  ] } };
+  const s = P.periodSeries(pay, months, P.periodIndexFor(pay, "2026-08-15"), "2026-08-15");
+  assert.strictEqual(s.usedExpected, false, "the check arrived, just a day early");
+  assert.strictEqual(s.income, 0);
+  assert.strictEqual(s.pot, 2940, "3000 received minus 60 spent");
+});
+
+test("an on-time previous paycheck still leaves this period's estimate intact", () => {
+  const pay = { anchor: "2026-08-14", cycleDays: 14, expected: 1500 };
+  // Previous period's income lands on ITS start date (2026-07-31), far from
+  // the current period's 2026-08-14 boundary, so it must not suppress.
+  const months = { "2026-07": { entries: [] }, "2026-08": { entries: [
+    E("income", "2026-07-31", 1500), E("expense", "2026-08-02", 100),
+  ] } };
+  const s = P.periodSeries(pay, months, P.periodIndexFor(pay, "2026-08-15"), "2026-08-15");
+  assert.strictEqual(s.usedExpected, true, "no check has arrived for this period yet");
+  assert.strictEqual(s.pot, 1400 + 1500, "prior leftover plus the estimate");
+});
+
 test("left equals pot minus spend to date", () => {
   const s = P.periodSeries(PAY, MONTHS_BASIC, 0, "2026-08-13");
   assert.strictEqual(s.pot, 1500);
