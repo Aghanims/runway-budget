@@ -359,6 +359,25 @@ function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
+function isoToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function prettyShortISO(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function prettyLongISO(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+/* Period mode is off until a valid state.pay exists; every caller
+   treats null as "fall back to the month engine". */
+function payPeriodSim() {
+  if (typeof PayPeriod === "undefined" || !PayPeriod.isValid(state.pay)) return null;
+  const today = isoToday();
+  return PayPeriod.periodSeries(state.pay, state.months, PayPeriod.periodIndexFor(state.pay, today), today);
+}
 function prettyDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -487,6 +506,7 @@ function renderDashboard(view) {
   const dayNow = sim.today;
   const daysLeft = isCurrent ? days - dayNow + 1 : 0;
   const todayBudget = sim.series[dayNow - 1]?.budget ?? 0;
+  const psim = payPeriodSim();
 
   const kpis = ["income", "expense", "bill", "saving", "debt"].map((type, i) => {
     const { planned, actual } = t[type];
@@ -516,25 +536,31 @@ function renderDashboard(view) {
           <div class="hero-veil"></div>
         </div>
         <div class="hero-left">
-          <div class="eyebrow">Left to spend · ${monthName(key)}</div>
-          <div class="hero-num ${t.left < 0 ? "neg" : ""}" id="hero-num">${fmtSigned(round2(t.left))}</div>
+          <div class="eyebrow">Left to spend · ${psim
+            ? `${prettyShortISO(psim.startISO)} – ${prettyShortISO(psim.endISO)}`
+            : monthName(key)}</div>
+          <div class="hero-num ${(psim ? psim.left : t.left) < 0 ? "neg" : ""}" id="hero-num">${fmtSigned(round2(psim ? psim.left : t.left))}</div>
           <div class="hero-caption">
-            ${t.rollover ? `includes ${fmt(t.rollover)} rolled over · ` : ""}
-            <span class="${deltaVsPlan >= 0 ? "delta-good" : "delta-bad"}">
-              ${deltaVsPlan >= 0 ? "▲ " + fmt0(deltaVsPlan) + " ahead of plan" : "▼ " + fmt0(-deltaVsPlan) + " behind plan"}
-            </span>
+            ${psim
+              ? `${psim.rolloverIn ? `includes ${fmt(round2(psim.rolloverIn))} rolled over from last period · ` : ""}${psim.usedExpected ? `<span class="delta-bad">estimated — paycheck not logged yet</span>` : `${psim.days}-day pay cycle`}`
+              : `${t.rollover ? `includes ${fmt(t.rollover)} rolled over · ` : ""}
+                 <span class="${deltaVsPlan >= 0 ? "delta-good" : "delta-bad"}">
+                   ${deltaVsPlan >= 0 ? "▲ " + fmt0(deltaVsPlan) + " ahead of plan" : "▼ " + fmt0(-deltaVsPlan) + " behind plan"}
+                 </span>`}
           </div>
         </div>
         <div class="hero-days">
-          ${isCurrent
-            ? `<strong>${fmt(Math.max(0, todayBudget))}</strong>today's budget · ${daysLeft} day${daysLeft === 1 ? "" : "s"} of runway`
-            : `<strong>${fmt(round2(t.spentActual))}</strong>spent this month`}
+          ${psim
+            ? `<strong>${fmt(Math.max(0, psim.series[Math.max(0, psim.todayIdx)].budget))}</strong>today's budget · ${psim.days - psim.todayIdx} day${psim.days - psim.todayIdx === 1 ? "" : "s"} to payday`
+            : isCurrent
+              ? `<strong>${fmt(Math.max(0, todayBudget))}</strong>today's budget · ${daysLeft} day${daysLeft === 1 ? "" : "s"} of runway`
+              : `<strong>${fmt(round2(t.spentActual))}</strong>spent this month`}
         </div>
       </div>
-      <div class="month-meter" title="Day ${dayNow} of ${days}">
-        <div class="fill" data-w="${(dayNow / days) * 100}"></div>
+      <div class="month-meter" title="${psim ? `Day ${psim.today} of ${psim.days}` : `Day ${dayNow} of ${days}`}">
+        <div class="fill" data-w="${psim ? (psim.today / psim.days) * 100 : (dayNow / days) * 100}"></div>
         <div class="centerline"></div>
-        <div class="plane" data-x="${(dayNow / days) * 100}">✈️</div>
+        <div class="plane" data-x="${psim ? (psim.today / psim.days) * 100 : (dayNow / days) * 100}">✈️</div>
       </div>
 
       <div class="dash-grid daily-grid">
@@ -551,6 +577,7 @@ function renderDashboard(view) {
         </div>
       </div>
 
+      <div class="section-label">This month · ${monthName(key)}</div>
       <div class="kpi-row">${kpis}</div>
 
       <div class="dash-grid">
@@ -577,7 +604,7 @@ function renderDashboard(view) {
       </div>
     </div>`;
 
-  countUp($("#hero-num"), round2(t.left));
+  countUp($("#hero-num"), round2(psim ? psim.left : t.left));
   ["income", "expense", "bill", "saving", "debt"].forEach((type) => {
     countUp($(`[data-kpi="${type}"]`), round2(t[type].actual), (n) => fmt(n));
   });

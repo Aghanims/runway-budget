@@ -885,3 +885,12 @@ select:focus-visible {
 /* scrollbar */
 .view::-webkit-scrollbar { width: 10px; }
 .view::-webkit-scrollbar-thumb { background: var(--grid); border-radius: 5px; border: 2px solid var(--page); }
+
+/* Separates the pay-period hero above from the month-scoped cards below. */
+.section-label {
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 26px 0 -6px;
+}
